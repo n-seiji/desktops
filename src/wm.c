@@ -338,11 +338,6 @@ void wm_move_focused(int ws) {
     refresh_border();
 }
 
-void wm_toggle_border(void) {
-    border_on = !border_on;
-    refresh_border();
-}
-
 void wm_restore_all(void) {
     for (int i = 0; i < nwins; i++) show(&wins[i]);
 }

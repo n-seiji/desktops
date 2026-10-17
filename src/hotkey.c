@@ -4,10 +4,8 @@
 // Fixed hotkeys:
 //   ⌥1-9,0   switch workspace (up to `workspaces` in config)
 //   ⌥⇧1-9,0  move focused window to workspace
-//   ⌥B     toggle border
 
 static const int64_t digit_keys[JD_MAX_WS] = {0x12, 0x13, 0x14, 0x15, 0x17, 0x16, 0x1A, 0x1C, 0x19, 0x1D};
-#define KEY_B 0x0B
 
 static CFMachPortRef tap;
 
@@ -28,10 +26,6 @@ static CGEventRef on_key(CGEventTapProxy proxy, CGEventType type, CGEventRef ev,
     int64_t key = CGEventGetIntegerValueField(ev, kCGKeyboardEventKeycode);
     bool repeat = CGEventGetIntegerValueField(ev, kCGKeyboardEventAutorepeat) != 0;
 
-    if (alt && key == KEY_B) {
-        if (!repeat) dispatch_async(dispatch_get_main_queue(), ^{ wm_toggle_border(); });
-        return NULL;
-    }
     for (int i = 0; i < config_workspaces(); i++) {
         if (key != digit_keys[i]) continue;
         int ws = i + 1;

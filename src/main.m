@@ -33,7 +33,7 @@ int main(int argc, char **argv) {
         }
         NSApplicationLoad();
         config_load();
-        border_init();
+        if (config_border()) border_init();
         wm_init();
         apps_init();
         if (!hotkey_init()) {
