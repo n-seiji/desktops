@@ -20,3 +20,4 @@ extern CGError SLSDisableUpdate(int cid);
 extern CGError SLSReenableUpdate(int cid);
 extern CGContextRef SLWindowContextCreate(int cid, uint32_t wid, CFDictionaryRef options);
 extern CGError CGSNewRegionWithRect(CGRect *rect, CFTypeRef *region);
+extern CGError SLSSetWindowBackgroundBlurRadius(int cid, uint32_t wid, int radius);

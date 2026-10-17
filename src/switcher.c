@@ -16,20 +16,21 @@
 // surfaces (~4.6MB each) for about a second, so the panel is flushed once and the
 // animation only moves the highlight window.
 
-#define PANEL_W 640.0
-#define RADIUS 20.0
-#define HEADER_H 28.0
-#define ROW_H 42.0
-#define ROW_GAP 2.0
+#define PANEL_W 750.0
+#define RADIUS 26.0
+#define HEADER_H 32.0
+#define ROW_H 38.0
 #define ROW_INSET 8.0
-#define ROW_PAD 14.0
+#define ROW_PAD 8.0
+#define ROW_RADIUS 10.0
 #define ICON 22.0
+#define BLUR 30
 #define MAX_ROWS 9
 #define SLIDE_MS 120.0
 
 enum { F_HEADER, F_ROW, NFONTS };
 static const struct { CGFloat size, weight; } font_specs[NFONTS] = {
-    {11, 0.23}, {14, 0.23},
+    {12, 0.23}, {14, 0.23},
 };
 
 static int cid;
@@ -39,6 +40,7 @@ static CTFontRef fonts[NFONTS];
 static dispatch_source_t timer;
 static sw_entry_t *ents;
 static int n, sel, top, rows;
+static bool hl_last;
 static CGSize size;
 static CGPoint origin;
 static double pos, from_pos, t0;
@@ -114,13 +116,22 @@ static void fill_rrect(CGContextRef c, CGRect r, CGFloat radius, uint32_t rgb, C
     CGPathRelease(p);
 }
 
-// A 1pt border drawn inside r.
-static void edge_rrect(CGContextRef c, CGRect r, CGFloat radius, uint32_t rgb, CGFloat a) {
-    CGPathRef p = rrect(r.origin.x + 0.5, r.origin.y + 0.5, r.size.width - 1, r.size.height - 1, radius - 0.5);
-    color(c, rgb, a, true);
+// A 1pt border drawn inside r, lit along the top and fading to a flat rim.
+static void edge_rrect(CGContextRef c, CGRect r) {
+    CGPathRef p = rrect(r.origin.x + 0.5, r.origin.y + 0.5, r.size.width - 1, r.size.height - 1, RADIUS - 0.5);
+    CGContextSaveGState(c);
     CGContextSetLineWidth(c, 1);
     CGContextAddPath(c, p);
-    CGContextStrokePath(c);
+    CGContextReplacePathWithStrokedPath(c);
+    CGContextClip(c);
+    CGColorSpaceRef cs = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    CGFloat comps[8] = {1, 1, 1, 0.35, 1, 1, 1, 0.18};
+    CGGradientRef g = CGGradientCreateWithColorComponents(cs, comps, NULL, 2);
+    CGContextDrawLinearGradient(c, g, CGPointMake(0, r.origin.y), CGPointMake(0, r.origin.y + RADIUS * 1.5),
+                                kCGGradientDrawsAfterEndLocation);
+    CGGradientRelease(g);
+    CGColorSpaceRelease(cs);
+    CGContextRestoreGState(c);
     CGPathRelease(p);
 }
 
@@ -132,8 +143,7 @@ static void draw_header(CGContextRef c) {
     char buf[32];
     snprintf(buf, sizeof buf, "Desktop %d", wm_current());
     CFStringRef s = CFStringCreateWithCString(NULL, buf, kCFStringEncodingUTF8);
-    put(c, fit(s, F_HEADER, 0x8e8e93, size.width - 2 * (ROW_INSET + ROW_PAD), kCTLineTruncationEnd), ROW_INSET + ROW_PAD,
-        HEADER_H / 2);
+    put(c, fit(s, F_HEADER, 0x9a9a9e, size.width - 2 * (ROW_INSET + ROW_PAD), kCTLineTruncationEnd), ROW_INSET + ROW_PAD, 18);
     CFRelease(s);
 }
 
@@ -148,7 +158,7 @@ static void draw_row(CGContextRef c, sw_entry_t *e, CGFloat y) {
     }
     CFStringRef main = e->title ? e->title : e->app;
     if (!main) return;
-    put(c, fit(main, F_ROW, 0xf5f5f7, right - left, is_path(main) ? kCTLineTruncationStart : kCTLineTruncationEnd), left, cy);
+    put(c, fit(main, F_ROW, 0xffffff, right - left, is_path(main) ? kCTLineTruncationStart : kCTLineTruncationEnd), left, cy);
 }
 
 // All of the panel's looks live here. Below the first line the context is y-down.
@@ -160,32 +170,11 @@ static void draw(CGContextRef c) {
     CGContextScaleCTM(c, 1, -1);
     CGContextSetTextMatrix(c, CGAffineTransformMakeScale(1, -1));
 
-    CGPathRef panel = rrect(0, 0, size.width, size.height, RADIUS);
-    CGContextSaveGState(c);
-    CGContextAddPath(c, panel);
-    CGContextClip(c);
-    CGColorSpaceRef cs = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-    CGFloat comps[8] = {38 / 255.0, 38 / 255.0, 40 / 255.0, 1.0, 22 / 255.0, 22 / 255.0, 24 / 255.0, 1.0};
-    CGGradientRef g = CGGradientCreateWithColorComponents(cs, comps, NULL, 2);
-    CGContextDrawLinearGradient(c, g, CGPointZero, CGPointMake(0, size.height), 0);
-    CGGradientRelease(g);
-    CGColorSpaceRelease(cs);
-    CGMutablePathRef hl = CGPathCreateMutable();
-    CGPathRef in1 = rrect(1, 1, size.width - 2, size.height - 2, RADIUS - 1), in2 = rrect(1, 2, size.width - 2, size.height - 2, RADIUS - 1);
-    CGPathAddPath(hl, NULL, in1);
-    CGPathAddPath(hl, NULL, in2);
-    color(c, 0xffffff, 0.08, false);
-    CGContextAddPath(c, hl);
-    CGContextEOFillPath(c);
-    CGPathRelease(in1);
-    CGPathRelease(in2);
-    CGPathRelease(hl);
-    CGContextRestoreGState(c);
-    CGPathRelease(panel);
-    edge_rrect(c, all, RADIUS, 0xffffff, 0.16);
+    fill_rrect(c, all, RADIUS, 0x141416, 0.85);
+    edge_rrect(c, all);
 
     draw_header(c);
-    for (int r = 0; r < rows; r++) draw_row(c, &ents[top + r], HEADER_H + r * (ROW_H + ROW_GAP));
+    for (int r = 0; r < rows; r++) draw_row(c, &ents[top + r], HEADER_H + r * ROW_H);
     CGContextRestoreGState(c);
 }
 
@@ -193,14 +182,28 @@ static CGSize hl_size(void) {
     return CGSizeMake(size.width - 2 * ROW_INSET, ROW_H);
 }
 
+// The bottom row's highlight sits concentric with the panel's bottom corners.
 static void draw_highlight(CGContextRef c) {
-    CGContextClearRect(c, (CGRect){{0, 0}, hl_size()});
-    fill_rrect(c, (CGRect){{0, 0}, hl_size()}, RADIUS - ROW_INSET, 0xffffff, 0.09);
+    CGSize sz = hl_size();
+    CGFloat br = hl_last ? RADIUS - ROW_INSET : ROW_RADIUS;
+    CGContextClearRect(c, (CGRect){{0, 0}, sz});
+    CGContextSaveGState(c);
+    CGContextTranslateCTM(c, 0, sz.height);
+    CGContextScaleCTM(c, 1, -1);
+    CGContextMoveToPoint(c, ROW_RADIUS, 0);
+    CGContextAddArcToPoint(c, sz.width, 0, sz.width, br, ROW_RADIUS);
+    CGContextAddArcToPoint(c, sz.width, sz.height, sz.width - br, sz.height, br);
+    CGContextAddArcToPoint(c, 0, sz.height, 0, sz.height - br, br);
+    CGContextAddArcToPoint(c, 0, 0, ROW_RADIUS, 0, ROW_RADIUS);
+    CGContextClosePath(c);
+    color(c, 0xffffff, 0.10, false);
+    CGContextFillPath(c);
+    CGContextRestoreGState(c);
 }
 
 static CGPoint hl_origin(void) {
     double hy = fmin(fmax(pos - top, 0), rows - 1);
-    return CGPointMake(origin.x + ROW_INSET, origin.y + HEADER_H + hy * (ROW_H + ROW_GAP));
+    return CGPointMake(origin.x + ROW_INSET, origin.y + HEADER_H + hy * ROW_H);
 }
 
 static void stop_timer(void) {
@@ -252,8 +255,26 @@ static void tick(void) {
     SLSMoveWindow(cid, hwid, &o);
 }
 
+// The panel's shape: horizontal half-point strips approximating the rounded rect, so the
+// background blur does not show outside the corners.
+static CFTypeRef rounded_region(CGSize sz) {
+    HIMutableShapeRef shape = HIShapeCreateMutable();
+    int steps = (int)(RADIUS * 2);
+    for (int k = 0; k < steps; k++) {
+        CGFloat dy = RADIUS - (k + 0.5) / 2, dx = RADIUS - sqrt(RADIUS * RADIUS - dy * dy);
+        CGRect top = {{dx, k / 2.0}, {sz.width - 2 * dx, 0.5}};
+        CGRect bot = {{dx, sz.height - (k + 1) / 2.0}, {sz.width - 2 * dx, 0.5}};
+        HIShapeUnionWithRect(shape, &top);
+        HIShapeUnionWithRect(shape, &bot);
+    }
+    CGRect mid = {{0, RADIUS}, {sz.width, sz.height - 2 * RADIUS}};
+    HIShapeUnionWithRect(shape, &mid);
+    return shape;
+}
+
 // A translucent, mouse-transparent window at (x, y) of the given size, drawn at 2x.
-static uint32_t make_window(CGPoint at, CGSize sz, CGContextRef *out) {
+// With blur the background is blurred and the window takes the panel's rounded shape.
+static uint32_t make_window(CGPoint at, CGSize sz, bool blur, CGContextRef *out) {
     CGRect r = {{0, 0}, sz};
     CFTypeRef region = NULL;
     CGSNewRegionWithRect(&r, &region);
@@ -267,6 +288,12 @@ static uint32_t make_window(CGPoint at, CGSize sz, CGContextRef *out) {
     SLSSetWindowResolution(cid, w, 2.0);
     SLSSetWindowOpacity(cid, w, false);
     SLSSetWindowLevel(cid, w, CGWindowLevelForKey(kCGPopUpMenuWindowLevelKey));
+    if (blur) {
+        CFTypeRef shape = rounded_region(sz);
+        SLSSetWindowShape(cid, w, 0, 0, shape);
+        CFRelease(shape);
+        SLSSetWindowBackgroundBlurRadius(cid, w, BLUR);
+    }
     *out = SLWindowContextCreate(cid, w, NULL);
     return w;
 }
@@ -281,12 +308,13 @@ static void open_panel(int dir) {
     rows = n < MAX_ROWS ? n : MAX_ROWS;
     top = sel < rows ? 0 : sel - rows + 1;
     pos = from_pos = sel;
-    size = CGSizeMake(PANEL_W, HEADER_H + rows * ROW_H + (rows - 1) * ROW_GAP + ROW_INSET);
+    size = CGSizeMake(PANEL_W, HEADER_H + rows * ROW_H + ROW_INSET);
     CGRect d = CGDisplayBounds(CGMainDisplayID());
     origin = CGPointMake(d.origin.x + (d.size.width - size.width) / 2, d.origin.y + (d.size.height - size.height) / 2);
-    wid = make_window(origin, size, &ctx);
+    hl_last = sel - top == rows - 1;
+    wid = make_window(origin, size, true, &ctx);
     CGPoint o = hl_origin();
-    hwid = wid ? make_window(o, hl_size(), &hctx) : 0;
+    hwid = wid ? make_window(o, hl_size(), false, &hctx) : 0;
     if (!hwid) {
         close_panel();
         return;
@@ -318,6 +346,12 @@ void switcher_step(int dir) {
     if (top != old) {
         draw(ctx);
         CGContextFlush(ctx);
+    }
+    bool last = sel - top == rows - 1;
+    if (last != hl_last) {
+        hl_last = last;
+        draw_highlight(hctx);
+        CGContextFlush(hctx);
     }
     t0 = CFAbsoluteTimeGetCurrent();
     if (timer) return;
