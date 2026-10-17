@@ -17,7 +17,7 @@
 // animation only moves the highlight window.
 
 #define PANEL_W 640.0
-#define RADIUS 26.0
+#define RADIUS 20.0
 #define HEADER_H 28.0
 #define ROW_H 42.0
 #define ROW_GAP 2.0
@@ -165,7 +165,7 @@ static void draw(CGContextRef c) {
     CGContextAddPath(c, panel);
     CGContextClip(c);
     CGColorSpaceRef cs = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-    CGFloat comps[8] = {38 / 255.0, 38 / 255.0, 40 / 255.0, 0.96, 22 / 255.0, 22 / 255.0, 24 / 255.0, 0.97};
+    CGFloat comps[8] = {38 / 255.0, 38 / 255.0, 40 / 255.0, 1.0, 22 / 255.0, 22 / 255.0, 24 / 255.0, 1.0};
     CGGradientRef g = CGGradientCreateWithColorComponents(cs, comps, NULL, 2);
     CGContextDrawLinearGradient(c, g, CGPointZero, CGPointMake(0, size.height), 0);
     CGGradientRelease(g);
@@ -195,7 +195,7 @@ static CGSize hl_size(void) {
 
 static void draw_highlight(CGContextRef c) {
     CGContextClearRect(c, (CGRect){{0, 0}, hl_size()});
-    fill_rrect(c, (CGRect){{0, 0}, hl_size()}, 12, 0xffffff, 0.09);
+    fill_rrect(c, (CGRect){{0, 0}, hl_size()}, RADIUS - ROW_INSET, 0xffffff, 0.09);
 }
 
 static CGPoint hl_origin(void) {
