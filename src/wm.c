@@ -354,6 +354,10 @@ static CFStringRef title_of(AXUIElementRef el) {
     return NULL;
 }
 
+int wm_current(void) {
+    return cur;
+}
+
 // Switchable windows of the current workspace in array order. *out is malloc'd with
 // +1 icon/app/title per entry (title is NULL when the window shows only its app name) (the caller releases them); *sel is the window after the
 // focused one (before it for dir < 0).
@@ -367,7 +371,7 @@ int wm_windows(int dir, sw_entry_t **out, int *sel) {
         if (w->ws != cur || w->hidden || get_bool(w->el, kAXMinimizedAttribute)) continue;
         if (w == f) at = n;
         CFStringRef app = apps_name(w->pid), raw = title_of(w->el);
-        list[n++] = (sw_entry_t){w->wid, apps_icon(w->pid, 64), app, raw ? title_clean(raw, app) : NULL};
+        list[n++] = (sw_entry_t){w->wid, apps_icon(w->pid, 44), app, raw ? title_clean(raw, app) : NULL};
         if (raw) CFRelease(raw);
     }
     *sel = n ? (at < 0 ? (dir > 0 ? 0 : n - 1) : ((at + dir) % n + n) % n) : 0;
