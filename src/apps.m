@@ -40,3 +40,24 @@ void apps_init(void) {
 pid_t apps_frontmost(void) {
     return NSWorkspace.sharedWorkspace.frontmostApplication.processIdentifier;
 }
+
+CGImageRef apps_icon(pid_t pid, int px) {
+    NSImage *img = [NSRunningApplication runningApplicationWithProcessIdentifier:pid].icon;
+    if (!img) return NULL;
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    CGContextRef c = CGBitmapContextCreate(NULL, px, px, 8, 0, cs, (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
+    CGColorSpaceRelease(cs);
+    if (!c) return NULL;
+    NSGraphicsContext *g = [NSGraphicsContext graphicsContextWithCGContext:c flipped:NO];
+    [NSGraphicsContext saveGraphicsState];
+    NSGraphicsContext.currentContext = g;
+    [img drawInRect:NSMakeRect(0, 0, px, px)];
+    [NSGraphicsContext restoreGraphicsState];
+    CGImageRef out = CGBitmapContextCreateImage(c);
+    CGContextRelease(c);
+    return out;
+}
+
+CFStringRef apps_name(pid_t pid) {
+    return (CFStringRef)CFBridgingRetain([NSRunningApplication runningApplicationWithProcessIdentifier:pid].localizedName);
+}

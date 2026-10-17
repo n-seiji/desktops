@@ -346,18 +346,39 @@ void wm_move_focused(int ws) {
     refresh_border();
 }
 
-void wm_cycle(int dir) {
+static CFStringRef title_of(AXUIElementRef el) {
+    CFTypeRef v = NULL;
+    if (AXUIElementCopyAttributeValue(el, kAXTitleAttribute, &v) != kAXErrorSuccess || !v) return NULL;
+    if (CFGetTypeID(v) == CFStringGetTypeID()) return v;
+    CFRelease(v);
+    return NULL;
+}
+
+// Switchable windows of the current workspace in array order. *out is malloc'd with
+// +1 icon/app/title per entry (the caller releases them); *sel is the window after the
+// focused one (before it for dir < 0).
+int wm_windows(int dir, sw_entry_t **out, int *sel) {
+    sw_entry_t *list = malloc(sizeof *list * (nwins ? nwins : 1));
+    if (!list) return 0;
     win_t *f = focused();
-    int start = f && f->ws == cur ? (int)(f - wins) : -1;
-    for (int k = 1; k <= nwins; k++) {
-        int i = start < 0 ? (dir > 0 ? k - 1 : nwins - k) : ((start + dir * k) % nwins + nwins) % nwins;
+    int n = 0, at = -1;
+    for (int i = 0; i < nwins; i++) {
         win_t *w = &wins[i];
         if (w->ws != cur || w->hidden || get_bool(w->el, kAXMinimizedAttribute)) continue;
-        last_focus[cur] = w->wid;
-        focus(w);
-        refresh_border();
-        return;
+        if (w == f) at = n;
+        list[n++] = (sw_entry_t){w->wid, apps_icon(w->pid, 64), apps_name(w->pid), title_of(w->el)};
     }
+    *sel = n ? (at < 0 ? (dir > 0 ? 0 : n - 1) : ((at + dir) % n + n) % n) : 0;
+    *out = list;
+    return n;
+}
+
+void wm_focus_wid(uint32_t wid) {
+    win_t *w = find_wid(wid);
+    if (!w || w->ws != cur) return;
+    last_focus[cur] = wid;
+    focus(w);
+    refresh_border();
 }
 
 void wm_restore_all(void) {
