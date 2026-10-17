@@ -24,7 +24,7 @@ If you want tiling, layouts, colors or more options, use those projects. just-de
 - ⌥Tab and ⌥⇧Tab are always captured by just-desktops, so apps never see those keys.
 - Apps can be pinned to a workspace in the config file. Existing and newly opened windows go there.
 - Focusing a window on another workspace (Cmd-Tab, Dock, …) switches to that workspace.
-- The border is white, 4pt wide, and only drawn around the focused window. Turn it off with `border = off` in the config; no border window is created then.
+- The border is a thin white ring floating 3pt off the focused window, brighter along the top. Turn it off with `border = off` in the config; no border window is created then.
 
 ## Design
 

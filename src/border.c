@@ -2,15 +2,22 @@
 #include "extern.h"
 #include <math.h>
 
-// A white border drawn directly through SkyLight (no AppKit), kept just
-// outside the focused window and ordered right above it. It is four thin
-// windows (top, bottom, left, right) instead of one window the size of the
-// target: a window's backing store is its full bounding rect, so one big
-// window costs tens of MB even when it is mostly transparent.
+// A thin white ring drawn directly through SkyLight (no AppKit), floating
+// off the focused window with a small gap and ordered right above it. It is
+// four thin windows (top, bottom, left, right) instead of one window the size
+// of the target: a window's backing store is its full bounding rect, so one
+// big window costs tens of MB even when it is mostly transparent.
 
-#define BORDER_WIDTH 4.0
-#define CORNER_RADIUS 10.0
-#define EDGE_THICKNESS (BORDER_WIDTH + CORNER_RADIUS) // wide enough to hold a rounded corner
+#define RING_WIDTH 1.5
+#define RING_GAP 3.0
+#define WINDOW_RADIUS 16.0 // typical macOS window corner radius (VS Code, Chrome); apps vary
+#define RING_OUTSET (RING_GAP + RING_WIDTH) // window frame to the ring's outer edge
+#define EDGE_THICKNESS (WINDOW_RADIUS + RING_OUTSET) // top/bottom: tall enough to hold the corner arcs
+#define SIDE_THICKNESS ceil(RING_WIDTH) // left/right only hold the straight part of the ring
+
+#define RIM_ALPHA 0.9 // ring alpha at the very top ...
+#define RING_ALPHA 0.6 // ... easing to this
+#define RIM_FADE 0.18 // fraction of the ring's height the easing takes
 
 enum { TOP, BOTTOM, LEFT, RIGHT, NEDGES };
 
@@ -24,14 +31,19 @@ static bool shown;
 static uint32_t last_target;
 static CGRect last_outer;
 
+// Window rects are snapped out to whole points (the ring itself sits at
+// fractional offsets inside them); a window at a half-point origin leaves an
+// unpainted row along one edge.
 static CGRect edge_rect(int e, CGRect o) {
-    CGFloat t = EDGE_THICKNESS;
+    CGFloat t = EDGE_THICKNESS, s = SIDE_THICKNESS;
+    CGRect r;
     switch (e) {
-    case TOP: return CGRectMake(o.origin.x, o.origin.y, o.size.width, t);
-    case BOTTOM: return CGRectMake(o.origin.x, o.origin.y + o.size.height - t, o.size.width, t);
-    case LEFT: return CGRectMake(o.origin.x, o.origin.y + t, t, o.size.height - 2 * t);
-    default: return CGRectMake(o.origin.x + o.size.width - t, o.origin.y + t, t, o.size.height - 2 * t);
+    case TOP: r = CGRectMake(o.origin.x, o.origin.y, o.size.width, t); break;
+    case BOTTOM: r = CGRectMake(o.origin.x, o.origin.y + o.size.height - t, o.size.width, t); break;
+    case LEFT: r = CGRectMake(o.origin.x, o.origin.y + t, s, o.size.height - 2 * t); break;
+    default: r = CGRectMake(o.origin.x + o.size.width - s, o.origin.y + t, s, o.size.height - 2 * t);
     }
+    return CGRectIntegral(r);
 }
 
 void border_init(void) {
@@ -70,24 +82,43 @@ static void draw_edge(int e, CGRect outer) {
     CGContextSaveGState(ctx);
     CGContextTranslateCTM(ctx, 0, er.size.height); // SkyLight contexts are y-up, frames are y-down
     CGContextScaleCTM(ctx, 1, -1);
-    CGRect path_rect = CGRectInset((CGRect){{0, 0}, outer.size}, BORDER_WIDTH / 2, BORDER_WIDTH / 2);
-    CGFloat radius = CORNER_RADIUS + BORDER_WIDTH / 2;
+    CGRect path_rect = CGRectInset((CGRect){{0, 0}, outer.size}, RING_WIDTH / 2, RING_WIDTH / 2);
+    CGFloat radius = WINDOW_RADIUS + RING_GAP + RING_WIDTH / 2;
     CGFloat max_r = fmin(path_rect.size.width, path_rect.size.height) / 2;
     if (radius > max_r) radius = max_r;
-    CGAffineTransform to_local = CGAffineTransformMakeTranslation(outer.origin.x - er.origin.x, outer.origin.y - er.origin.y);
+    CGFloat ox = outer.origin.x - er.origin.x, oy = outer.origin.y - er.origin.y;
+    CGAffineTransform to_local = CGAffineTransformMakeTranslation(ox, oy);
     CGPathRef path = CGPathCreateWithRoundedRect(path_rect, radius, radius, &to_local);
-    CGContextSetRGBStrokeColor(ctx, 1, 1, 1, 1);
-    CGContextSetLineWidth(ctx, BORDER_WIDTH);
     CGContextAddPath(ctx, path);
-    CGContextStrokePath(ctx);
+    CGContextSetLineWidth(ctx, RING_WIDTH);
+    CGContextReplacePathWithStrokedPath(ctx);
+    CGContextClip(ctx);
     CGPathRelease(path);
+
+    // One vertical gradient in the ring's own coordinates, so every edge window
+    // draws its slice of the same colours and there is no seam between them.
+    enum { STOPS = 5 };
+    CGFloat comps[STOPS * 4], locs[STOPS];
+    for (int i = 0; i < STOPS; i++) {
+        CGFloat u = (CGFloat)i / (STOPS - 1);
+        CGFloat ease = u * u * (3 - 2 * u); // smoothstep
+        locs[i] = u;
+        comps[i * 4] = comps[i * 4 + 1] = comps[i * 4 + 2] = 1;
+        comps[i * 4 + 3] = RIM_ALPHA + (RING_ALPHA - RIM_ALPHA) * ease;
+    }
+    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+    CGGradientRef grad = CGGradientCreateWithColorComponents(space, comps, locs, STOPS);
+    CGContextDrawLinearGradient(ctx, grad, (CGPoint){0, oy}, (CGPoint){0, oy + RIM_FADE * outer.size.height},
+                                kCGGradientDrawsAfterEndLocation);
+    CGGradientRelease(grad);
+    CGColorSpaceRelease(space);
     CGContextRestoreGState(ctx);
     CGContextFlush(ctx);
 }
 
 void border_show(CGRect frame, uint32_t target_wid) {
     if (!edges[NEDGES - 1].ctx) return;
-    CGRect outer = CGRectInset(frame, -BORDER_WIDTH, -BORDER_WIDTH);
+    CGRect outer = CGRectInset(frame, -RING_OUTSET, -RING_OUTSET);
     CGDirectDisplayID d;
     uint32_t n = 0;
     if (CGGetDisplaysWithRect(frame, 1, &d, &n) == kCGErrorSuccess && n) outer = CGRectIntersection(outer, CGDisplayBounds(d));
