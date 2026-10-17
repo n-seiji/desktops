@@ -327,6 +327,7 @@ void wm_switch(int ws) {
     follow_block_until = now() + 0.4;
     focus_in_current();
     refresh_border();
+    hud_show(old, ws);
 }
 
 void wm_move_focused(int ws) {

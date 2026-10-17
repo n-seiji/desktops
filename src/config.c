@@ -6,6 +6,7 @@
 
 // ~/.config/just-desktops/config
 //   border = on|off
+//   hud = on|off
 //   workspaces = <1-10>   (default 9; 10 uses ⌥0)
 //   <bundle id> = <workspace 1-9>
 
@@ -14,6 +15,7 @@ typedef struct { char id[128]; int ws; } assign_t;
 static assign_t *assigns;
 static int nassigns;
 static bool border = true;
+static bool hud = true;
 static int workspaces = 9;
 
 static char *trim(char *s) {
@@ -43,6 +45,10 @@ void config_load(void) {
             border = !strcmp(v, "on") || !strcmp(v, "true") || !strcmp(v, "yes");
             continue;
         }
+        if (!strcmp(k, "hud")) {
+            hud = !strcmp(v, "on") || !strcmp(v, "true") || !strcmp(v, "yes");
+            continue;
+        }
         if (!strcmp(k, "workspaces")) {
             int n = atoi(v);
             if (n >= 1 && n <= JD_MAX_WS) workspaces = n;
@@ -67,5 +73,7 @@ int config_assign(const char *bundle_id) {
 }
 
 bool config_border(void) { return border; }
+
+bool config_hud(void) { return hud; }
 
 int config_workspaces(void) { return workspaces; }
