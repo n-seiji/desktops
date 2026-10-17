@@ -4,13 +4,15 @@
 #include <stdint.h>
 
 #define JD_VERSION "0.1.0"
-#define JD_MAX_WS 10 // ⌥1-9 and ⌥0
+#define JD_MAX_WS 10 // most desktops `keys` can bind
 
 // config.c
 void config_load(void);
 int config_assign(const char *bundle_id);
 bool config_border(void);
-int config_workspaces(void);
+int config_workspaces(void); // number of desktops: how many keys are bound
+int config_key(int i);       // virtual keycode of desktop i + 1
+int config_parse_keys(const char *list, int *codes);
 
 // border.c
 void border_init(void);

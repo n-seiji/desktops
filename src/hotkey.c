@@ -2,11 +2,9 @@
 #include <dispatch/dispatch.h>
 
 // Fixed hotkeys:
-//   ⌥1-9,0   switch workspace (up to `workspaces` in config)
-//   ⌥⇧1-9,0  move focused window to workspace
+//   ⌥<key>   switch to the desktop bound to the key (`keys` in config, default 1 2 3 q w e)
+//   ⌥⇧<key>  move focused window to that desktop
 //   ⌥Tab / ⌥⇧Tab  open the window switcher / move the selection; releasing ⌥ commits, Esc cancels
-
-static const int64_t digit_keys[JD_MAX_WS] = {0x12, 0x13, 0x14, 0x15, 0x17, 0x16, 0x1A, 0x1C, 0x19, 0x1D};
 
 #define KEY_TAB 0x30
 #define KEY_ESC 0x35
@@ -54,7 +52,7 @@ static CGEventRef on_key(CGEventTapProxy proxy, CGEventType type, CGEventRef ev,
         return NULL;
     }
     for (int i = 0; i < config_workspaces(); i++) {
-        if (key != digit_keys[i]) continue;
+        if (key != config_key(i)) continue;
         int ws = i + 1;
         if (!repeat) {
             if (alt) dispatch_async(dispatch_get_main_queue(), ^{ wm_switch(ws); });
