@@ -23,7 +23,6 @@ If you want tiling, layouts, colors or more options, use those projects. just-de
 - Apps can be pinned to a workspace in the config file. Existing and newly opened windows go there.
 - Focusing a window on another workspace (Cmd-Tab, Dock, …) switches to that workspace.
 - The border is white, 4pt wide, and only drawn around the focused window. Turn it off with `border = off` in the config; no border window is created then.
-- Switching workspaces shows a small HUD: a row of numbered cells with a highlight that slides to the target and fades out. The window exists only while it is visible. Turn it off with `hud = off`.
 
 ## Design
 
@@ -58,7 +57,6 @@ Upgrading through mise changes the binary path, so run `mise run service` again 
 
 ```
 border = on
-hud = on
 workspaces = 9
 com.apple.Safari = 1
 com.googlecode.iterm2 = 2

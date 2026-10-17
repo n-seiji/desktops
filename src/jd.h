@@ -9,16 +9,12 @@
 void config_load(void);
 int config_assign(const char *bundle_id);
 bool config_border(void);
-bool config_hud(void);
 int config_workspaces(void);
 
 // border.c
 void border_init(void);
 void border_show(CGRect frame, uint32_t target_wid);
 void border_hide(void);
-
-// hud.c
-void hud_show(int from, int to);
 
 // hotkey.c
 bool hotkey_init(void);
