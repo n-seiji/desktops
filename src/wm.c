@@ -2,6 +2,7 @@
 #include "extern.h"
 #include <dispatch/dispatch.h>
 #include <stdlib.h>
+#include <string.h>
 
 // Workspaces are emulated like AeroSpace does: windows of inactive
 // workspaces are parked at the bottom-right corner of the main display,
@@ -102,7 +103,7 @@ static win_t *first_in(int ws) {
 
 static void remove_win_at(int i) {
     CFRelease(wins[i].el);
-    wins[i] = wins[--nwins];
+    memmove(&wins[i], &wins[i + 1], sizeof *wins * (--nwins - i)); // keep order: cycling relies on it
 }
 
 // ---- hide / show / focus ----
@@ -336,6 +337,21 @@ void wm_move_focused(int ws) {
         focus_in_current();
     }
     refresh_border();
+}
+
+void wm_cycle(int dir) {
+    win_t *f = focused();
+    if (!f) f = find_wid(last_focus[cur]); // some apps (Slack) fail the AX focus query
+    int start = f && f->ws == cur ? (int)(f - wins) : -1;
+    for (int k = 1; k <= nwins; k++) {
+        int i = start < 0 ? (dir > 0 ? k - 1 : nwins - k) : ((start + dir * k) % nwins + nwins) % nwins;
+        win_t *w = &wins[i];
+        if (w->ws != cur || w->hidden || get_bool(w->el, kAXMinimizedAttribute)) continue;
+        last_focus[cur] = w->wid;
+        focus(w);
+        refresh_border();
+        return;
+    }
 }
 
 void wm_restore_all(void) {

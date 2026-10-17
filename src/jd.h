@@ -26,6 +26,7 @@ void wm_remove_app(pid_t pid);
 void wm_on_focus(void);
 void wm_switch(int ws);
 void wm_move_focused(int ws);
+void wm_cycle(int dir);
 void wm_restore_all(void);
 
 // apps.m

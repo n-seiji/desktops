@@ -17,6 +17,7 @@ If you want tiling, layouts, colors or more options, use those projects. just-de
 |---|---|
 | ⌥1 … ⌥9 (⌥0) | Switch to workspace 1 … 9 (10) |
 | ⌥⇧1 … ⌥⇧9 (⌥⇧0) | Move the focused window to that workspace |
+| ⌥Tab / ⌥⇧Tab | Focus the next / previous window in the current workspace (wraps around) |
 
 - Apps can be pinned to a workspace in the config file. Existing and newly opened windows go there.
 - Focusing a window on another workspace (Cmd-Tab, Dock, …) switches to that workspace.
