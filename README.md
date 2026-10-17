@@ -1,6 +1,13 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+    <img src="assets/logo-light.svg" width="128" height="128" alt="just-desktops">
+  </picture>
+</p>
+
 # just-desktops
 
-A tiny macOS-only daemon that does two things: switch between workspaces, and draw a white border around the focused window. Nothing else.
+A tiny macOS-only daemon that does two things: switch between workspaces, and draw a ring around the focused window. Nothing else.
 
 ## Inspiration
 
@@ -84,4 +91,4 @@ Pushing a `v*` tag makes GitHub Actions publish arm64 and x86_64 binaries to Rel
 
 - Windows are parked on the main display only; multiple displays are not supported yet.
 - After a crash, parked windows stay in the bottom-right corner until the next launch, which moves them back on screen.
-- Key bindings are fixed.
+- ⌥Tab, ⌥⇧Tab and the ⌥ / ⌥⇧ modifiers are fixed; only the desktop keys are configurable.
