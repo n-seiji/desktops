@@ -16,14 +16,16 @@
 // surfaces (~4.6MB each) for about a second, so the panel is flushed once and the
 // animation only moves the highlight window.
 
-#define PANEL_W 750.0
+#define MIN_W 420.0
+#define MAX_W 750.0
 #define RADIUS 26.0
-#define HEADER_H 32.0
-#define ROW_H 38.0
+#define HEADER_H 34.0
+#define ROW_H 46.0
 #define ROW_INSET 8.0
 #define ROW_PAD 8.0
-#define ROW_RADIUS 10.0
-#define ICON 22.0
+#define ROW_RADIUS 12.0
+#define ICON 28.0
+#define ICON_GAP 14.0
 #define BLUR 30
 #define MAX_ROWS 9
 #define SLIDE_MS 120.0
@@ -41,7 +43,7 @@ static const palette_t LIGHT = {0xf6f6f8, 0.80, 0, 0.10, 0.16, 0x6e6e73, 0x1d1d1
 
 enum { F_HEADER, F_ROW, NFONTS };
 static const struct { CGFloat size, weight; } font_specs[NFONTS] = {
-    {12, 0.23}, {14, 0.23},
+    {13, 0.23}, {16, 0.23},
 };
 
 static int cid;
@@ -152,16 +154,34 @@ static bool is_path(CFStringRef s) {
     return CFStringHasPrefix(s, CFSTR("~/")) || CFStringHasPrefix(s, CFSTR("/"));
 }
 
+static CFStringRef main_text(const sw_entry_t *e) {
+    return e->title ? e->title : e->app;
+}
+
+// The panel's width: the widest title plus the row's padding, within MIN_W..MAX_W.
+static CGFloat fit_width(void) {
+    CGFloat w = 0;
+    for (int i = 0; i < n; i++) {
+        CFStringRef s = main_text(&ents[i]);
+        if (!s) continue;
+        CTLineRef l = fit(s, F_ROW, 0, 1e9, kCTLineTruncationEnd);
+        w = fmax(w, CTLineGetTypographicBounds(l, NULL, NULL, NULL));
+        CFRelease(l);
+    }
+    w = ceil(2 * (ROW_INSET + ROW_PAD) + ICON + ICON_GAP + w);
+    return fmin(fmax(w, MIN_W), MAX_W);
+}
+
 static void draw_header(CGContextRef c) {
     char buf[32];
     snprintf(buf, sizeof buf, "Desktop %d", wm_current());
     CFStringRef s = CFStringCreateWithCString(NULL, buf, kCFStringEncodingUTF8);
-    put(c, fit(s, F_HEADER, pal->header, size.width - 2 * (ROW_INSET + ROW_PAD), kCTLineTruncationEnd), ROW_INSET + ROW_PAD, 18);
+    put(c, fit(s, F_HEADER, pal->header, size.width - 2 * (ROW_INSET + ROW_PAD), kCTLineTruncationEnd), ROW_INSET + ROW_PAD, 19);
     CFRelease(s);
 }
 
 static void draw_row(CGContextRef c, sw_entry_t *e, CGFloat y) {
-    CGFloat cy = y + ROW_H / 2, left = ROW_INSET + ROW_PAD + ICON + 12, right = size.width - ROW_INSET - ROW_PAD;
+    CGFloat cy = y + ROW_H / 2, left = ROW_INSET + ROW_PAD + ICON + ICON_GAP, right = size.width - ROW_INSET - ROW_PAD;
     if (e->icon) {
         CGContextSaveGState(c);
         CGContextTranslateCTM(c, ROW_INSET + ROW_PAD, cy + ICON / 2);
@@ -169,7 +189,7 @@ static void draw_row(CGContextRef c, sw_entry_t *e, CGFloat y) {
         CGContextDrawImage(c, (CGRect){{0, 0}, {ICON, ICON}}, e->icon);
         CGContextRestoreGState(c);
     }
-    CFStringRef main = e->title ? e->title : e->app;
+    CFStringRef main = main_text(e);
     if (!main) return;
     put(c, fit(main, F_ROW, pal->title, right - left, is_path(main) ? kCTLineTruncationStart : kCTLineTruncationEnd), left, cy);
 }
@@ -319,23 +339,23 @@ static void open_panel(int dir) {
     }
     cid = SLSMainConnectionID();
     pal = appearance_dark() ? &DARK : &LIGHT;
+    bool ok = true;
+    for (int i = 0; i < NFONTS; i++) ok = (fonts[i] = make_font(font_specs[i].size, font_specs[i].weight)) && ok;
+    if (!ok) {
+        close_panel();
+        return;
+    }
     rows = n < MAX_ROWS ? n : MAX_ROWS;
     top = sel < rows ? 0 : sel - rows + 1;
     pos = from_pos = sel;
-    size = CGSizeMake(PANEL_W, HEADER_H + rows * ROW_H + ROW_INSET);
+    size = CGSizeMake(fit_width(), HEADER_H + rows * ROW_H + ROW_INSET);
     CGRect d = CGDisplayBounds(CGMainDisplayID());
     origin = CGPointMake(d.origin.x + (d.size.width - size.width) / 2, d.origin.y + (d.size.height - size.height) / 2);
     hl_last = sel - top == rows - 1;
     wid = make_window(origin, size, true, &ctx);
     CGPoint o = hl_origin();
     hwid = wid ? make_window(o, hl_size(), false, &hctx) : 0;
-    if (!hwid) {
-        close_panel();
-        return;
-    }
-    bool ok = ctx && hctx;
-    for (int i = 0; i < NFONTS; i++) ok = (fonts[i] = make_font(font_specs[i].size, font_specs[i].weight)) && ok;
-    if (!ok) {
+    if (!hwid || !ctx || !hctx) {
         close_panel();
         return;
     }

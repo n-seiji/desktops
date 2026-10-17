@@ -399,7 +399,7 @@ int wm_windows(int dir, sw_entry_t **out, int *sel) {
         if (w->ws != cur || w->hidden || get_bool(w->el, kAXMinimizedAttribute)) continue;
         if (w == f) at = n;
         CFStringRef app = apps_name(w->pid), raw = title_of(w->el);
-        list[n++] = (sw_entry_t){w->wid, apps_icon(w->pid, 44), app, raw ? title_clean(raw, app) : NULL};
+        list[n++] = (sw_entry_t){w->wid, apps_icon(w->pid, 56), app, raw ? title_clean(raw, app) : NULL};
         if (raw) CFRelease(raw);
     }
     label_entries(list, n);
