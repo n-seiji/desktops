@@ -11,9 +11,11 @@ void config_load(void);
 int config_assign(const char *bundle_id);
 bool config_border(void);
 bool config_switcher(void); // ⌥Tab is captured and the window switcher runs
+bool config_menubar(void);  // the menu bar item is shown
 bool config_parse_on(const char *v);
 int config_workspaces(void); // number of desktops: how many keys are bound
 int config_key(int i);       // virtual keycode of desktop i + 1
+char config_key_char(int i); // that key as an uppercase character
 int config_parse_keys(const char *list, int *codes);
 
 // appearance.c
@@ -33,6 +35,13 @@ typedef struct {
 void switcher_step(int dir);
 void switcher_commit(void);
 void switcher_cancel(void);
+
+// menubar.m
+void menubar_init(void);
+// The current desktop ws, the n pids of the apps on it in switcher order, and the focused pid.
+// Redraws only when one of them changed.
+void menubar_update(int ws, const pid_t *pids, int n, pid_t front);
+void menubar_forget(pid_t pid); // drop an app's cached glyph
 
 // title.c
 // +1 title without its " - <app>" tail, or NULL when only the app name is left.

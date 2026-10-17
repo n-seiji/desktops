@@ -36,6 +36,7 @@ static uint32_t stale; // parked window macOS still reports as focused
 static AXUIElementRef sys;
 
 static void ax_cb(AXObserverRef obs, AXUIElementRef el, CFStringRef n, void *ctx);
+static void refresh_menubar(void);
 
 // ---- AX helpers ----
 
@@ -260,9 +261,11 @@ static void add_app(pid_t pid, int assign, int attempt) {
 
 void wm_add_app(pid_t pid, const char *bundle_id) {
     add_app(pid, config_assign(bundle_id), 0);
+    refresh_menubar();
 }
 
 void wm_remove_app(pid_t pid) {
+    menubar_forget(pid);
     for (int i = nwins - 1; i >= 0; i--)
         if (wins[i].pid == pid) remove_win_at(i);
     for (int i = 0; i < napps; i++) {
@@ -314,6 +317,7 @@ void wm_on_focus(void) {
         last_focus[cur] = w->wid;
     }
     refresh_border();
+    refresh_menubar();
 }
 
 void wm_switch(int ws) {
@@ -331,6 +335,10 @@ void wm_switch(int ws) {
 
     focus_in_current();
     refresh_border();
+    refresh_menubar();
+    // WindowServer may not list the windows just shown as on screen yet.
+    if (config_menubar())
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 150 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{ refresh_menubar(); });
 }
 
 void wm_move_focused(int ws) {
@@ -345,6 +353,7 @@ void wm_move_focused(int ws) {
         focus_in_current();
     }
     refresh_border();
+    refresh_menubar();
 }
 
 static CFStringRef title_of(AXUIElementRef el) {
@@ -442,6 +451,23 @@ int wm_windows(int dir, sw_entry_t **out, int *sel) {
     *sel = n ? (at < 0 ? (dir > 0 ? 0 : n - 1) : ((at + dir) % n + n) % n) : 0;
     *out = list;
     return n;
+}
+
+// Hands the menu bar item the apps that have a switchable window on this desktop.
+static void refresh_menubar(void) {
+    if (!config_menubar()) return;
+    pid_t pids[64];
+    int n = 0;
+    CFArrayRef shown = shown_windows();
+    for (int i = 0; i < nwins && n < 64; i++) {
+        win_t *w = &wins[i];
+        if (w->ws != cur || w->hidden || get_bool(w->el, kAXMinimizedAttribute) || !is_shown(shown, w->wid)) continue;
+        bool seen = false;
+        for (int j = 0; j < n && !seen; j++) seen = pids[j] == w->pid;
+        if (!seen) pids[n++] = w->pid;
+    }
+    if (shown) CFRelease(shown);
+    menubar_update(cur, pids, n, apps_frontmost());
 }
 
 void wm_focus_wid(uint32_t wid) {

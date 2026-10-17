@@ -21,7 +21,19 @@ static void check_on(const char *v, bool want) {
     }
 }
 
+static void check_key_char(int i, char want) {
+    char got = config_key_char(i);
+    if (got != want) {
+        printf("FAIL config_key_char(%d) = '%c'; want '%c'\n", i, got, want);
+        failed++;
+    }
+}
+
 int main(void) {
+    check_key_char(0, '1');
+    check_key_char(2, '3');
+    check_key_char(3, 'Q');
+    check_key_char(5, 'E');
     check_on("on", true);
     check_on("true", true);
     check_on("yes", true);

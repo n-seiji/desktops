@@ -7,6 +7,7 @@
 // ~/.config/just-desktops/config
 //   border = on|off
 //   switcher = on|off     (⌥Tab window switcher)
+//   menubar = on|off      (menu bar item: current desktop and its apps)
 //   keys = 1 2 3 q w e    (digits and letters; the n-th key is Desktop n)
 //   <bundle id> = <desktop number>
 
@@ -16,6 +17,7 @@ static assign_t *assigns;
 static int nassigns;
 static bool border = true;
 static bool switcher = true;
+static bool menubar = false;
 static int keys[JD_MAX_WS] = {0x12, 0x13, 0x14, 0x0C, 0x0D, 0x0E}; // 1 2 3 q w e
 static int nkeys = 6;
 
@@ -76,6 +78,10 @@ void config_load(void) {
             switcher = config_parse_on(v);
             continue;
         }
+        if (!strcmp(k, "menubar")) {
+            menubar = config_parse_on(v);
+            continue;
+        }
         if (!strcmp(k, "keys")) {
             int parsed[JD_MAX_WS];
             int n = config_parse_keys(v, parsed);
@@ -107,6 +113,10 @@ bool config_border(void) { return border; }
 
 bool config_switcher(void) { return switcher; }
 
+bool config_menubar(void) { return menubar; }
+
 int config_workspaces(void) { return nkeys; }
 
 int config_key(int i) { return keys[i]; }
+
+char config_key_char(int i) { return toupper((unsigned char)layout[keys[i]]); }

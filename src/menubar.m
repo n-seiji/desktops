@@ -1,0 +1,176 @@
+#import <AppKit/AppKit.h>
+#import <CoreText/CoreText.h>
+#include <signal.h>
+#include <string.h>
+#include <unistd.h>
+#include "jd.h"
+
+// Optional menu bar item: the current desktop's key in an outlined box, then one line-art
+// glyph per app on that desktop. The focused app's glyph is cut out of a filled tile.
+// The image is a template, so macOS tints it for light and dark menu bars.
+
+enum {
+    MAX_APPS = 64,
+    SCALE = 2,       // pixels per point
+    HEIGHT = 18,     // points
+    SLOT = 16,       // key box and glyph tile size
+    GAP = 4,
+    GLYPH_PX = 32,
+};
+
+typedef struct {
+    pid_t pid;
+    CGImageRef mask; // NULL when the app has no icon
+} glyph_t;
+
+static NSStatusItem *item;
+static glyph_t *glyphs;
+static int nglyphs;
+
+static int last_ws;
+static int last_n = -1;
+static pid_t last_pids[MAX_APPS];
+static pid_t last_front;
+
+@interface JDMenuTarget : NSObject
+@end
+
+@implementation JDMenuTarget
+- (void)quit:(id)sender {
+    (void)sender;
+    kill(getpid(), SIGTERM); // the same path as a signal: parked windows come back first
+}
+@end
+
+static JDMenuTarget *target;
+
+// White glyph whose alpha keeps the icon's silhouette and favors its dark detail, so
+// colored app icons read as line art.
+static CGImageRef glyph_mask(CGImageRef icon) {
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    CGContextRef c = CGBitmapContextCreate(NULL, GLYPH_PX, GLYPH_PX, 8, GLYPH_PX * 4, cs,
+                                           (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
+    CGColorSpaceRelease(cs);
+    if (!c) return NULL;
+    CGContextDrawImage(c, CGRectMake(0, 0, GLYPH_PX, GLYPH_PX), icon);
+    uint8_t *p = CGBitmapContextGetData(c);
+    for (int i = 0; i < GLYPH_PX * GLYPH_PX; i++, p += 4) {
+        int a = p[3];
+        int luma = (p[0] * 54 + p[1] * 183 + p[2] * 19) >> 8;
+        int out = a / 3 + (a - luma) * 2 / 3;
+        p[0] = p[1] = p[2] = p[3] = out > 255 ? 255 : out;
+    }
+    CGImageRef m = CGBitmapContextCreateImage(c);
+    CGContextRelease(c);
+    return m;
+}
+
+static CGImageRef mask_for(pid_t pid) {
+    for (int i = 0; i < nglyphs; i++)
+        if (glyphs[i].pid == pid) return glyphs[i].mask;
+    glyph_t *n = realloc(glyphs, sizeof *glyphs * (nglyphs + 1));
+    if (!n) return NULL;
+    glyphs = n;
+    CGImageRef icon = apps_icon(pid, GLYPH_PX);
+    CGImageRef mask = icon ? glyph_mask(icon) : NULL;
+    if (icon) CGImageRelease(icon);
+    glyphs[nglyphs++] = (glyph_t){pid, mask};
+    return mask;
+}
+
+static void draw_key(CGContextRef c, char key) {
+    CGRect box = CGRectMake(0.5, (HEIGHT - SLOT) / 2.0 + 0.5, SLOT - 1, SLOT - 1);
+    CGPathRef path = CGPathCreateWithRoundedRect(box, 3.5, 3.5, NULL);
+    CGContextSetLineWidth(c, 1);
+    CGContextAddPath(c, path);
+    CGContextStrokePath(c);
+    CGPathRelease(path);
+
+    CTFontRef font = CTFontCreateUIFontForLanguage(kCTFontUIFontEmphasizedSystem, 11, NULL);
+    CFStringRef text = CFStringCreateWithBytes(NULL, (const UInt8 *)&key, 1, kCFStringEncodingASCII, false);
+    CFTypeRef keys[] = {kCTFontAttributeName, kCTForegroundColorFromContextAttributeName};
+    CFTypeRef vals[] = {font, kCFBooleanTrue};
+    CFDictionaryRef attrs = CFDictionaryCreate(NULL, (const void **)keys, (const void **)vals, 2,
+                                               &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    CFAttributedStringRef str = CFAttributedStringCreate(NULL, text, attrs);
+    CTLineRef line = CTLineCreateWithAttributedString(str);
+    CGRect b = CTLineGetBoundsWithOptions(line, kCTLineBoundsUseGlyphPathBounds);
+    CGContextSetTextPosition(c, SLOT / 2.0 - CGRectGetMidX(b), HEIGHT / 2.0 - CGRectGetMidY(b));
+    CTLineDraw(line, c);
+    CFRelease(line);
+    CFRelease(str);
+    CFRelease(attrs);
+    CFRelease(text);
+    CFRelease(font);
+}
+
+static void draw_app(CGContextRef c, CGRect slot, CGImageRef mask, bool focused) {
+    CGRect art = CGRectInset(slot, 2, 2);
+    if (focused) {
+        CGPathRef tile = CGPathCreateWithRoundedRect(slot, 4, 4, NULL);
+        CGContextAddPath(c, tile);
+        CGContextFillPath(c);
+        CGPathRelease(tile);
+        CGContextSetBlendMode(c, kCGBlendModeDestinationOut);
+    }
+    if (mask) CGContextDrawImage(c, art, mask);
+    CGContextSetBlendMode(c, kCGBlendModeNormal);
+}
+
+static void render(int ws, const pid_t *pids, int n, pid_t front) {
+    int width = SLOT + (n ? GAP + n * SLOT + (n - 1) * GAP : 0);
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    CGContextRef c = CGBitmapContextCreate(NULL, width * SCALE, HEIGHT * SCALE, 8, 0, cs,
+                                           (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
+    CGColorSpaceRelease(cs);
+    if (!c) return;
+    CGContextScaleCTM(c, SCALE, SCALE);
+    CGContextSetInterpolationQuality(c, kCGInterpolationHigh);
+    CGContextSetGrayFillColor(c, 1, 1);
+    CGContextSetGrayStrokeColor(c, 1, 1);
+
+    draw_key(c, config_key_char(ws - 1));
+    for (int i = 0; i < n; i++) {
+        CGRect slot = CGRectMake(SLOT + GAP + i * (SLOT + GAP), (HEIGHT - SLOT) / 2.0, SLOT, SLOT);
+        draw_app(c, slot, mask_for(pids[i]), pids[i] == front);
+    }
+
+    CGImageRef strip = CGBitmapContextCreateImage(c);
+    CGContextRelease(c);
+    NSImage *img = [[NSImage alloc] initWithCGImage:strip size:NSMakeSize(width, HEIGHT)];
+    CGImageRelease(strip);
+    img.template = YES;
+    item.button.image = img;
+}
+
+void menubar_init(void) {
+    [NSApplication sharedApplication];
+    [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+    target = [JDMenuTarget new];
+    NSMenu *menu = [NSMenu new];
+    NSMenuItem *quit = [menu addItemWithTitle:@"Quit just-desktops" action:@selector(quit:) keyEquivalent:@""];
+    quit.target = target;
+    item = [NSStatusBar.systemStatusBar statusItemWithLength:NSVariableStatusItemLength];
+    item.menu = menu;
+}
+
+void menubar_update(int ws, const pid_t *pids, int n, pid_t front) {
+    if (!item) return;
+    if (ws == last_ws && n == last_n && front == last_front && !memcmp(pids, last_pids, sizeof *pids * n)) return;
+    last_ws = ws;
+    last_n = n;
+    last_front = front;
+    memcpy(last_pids, pids, sizeof *pids * n);
+    @autoreleasepool {
+        render(ws, pids, n, front);
+    }
+}
+
+void menubar_forget(pid_t pid) {
+    for (int i = 0; i < nglyphs; i++) {
+        if (glyphs[i].pid != pid) continue;
+        if (glyphs[i].mask) CGImageRelease(glyphs[i].mask);
+        glyphs[i] = glyphs[--nglyphs];
+        return;
+    }
+}

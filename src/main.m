@@ -35,6 +35,7 @@ int main(int argc, char **argv) {
         if (config_border()) border_init();
         wm_init();
         apps_init();
+        if (config_menubar()) menubar_init();
         if (!hotkey_init()) {
             fprintf(stderr, "just-desktops: could not create keyboard event tap\n");
             wm_restore_all();
@@ -55,6 +56,9 @@ int main(int argc, char **argv) {
         }
         wm_on_focus();
     }
+
+    // The status item needs AppKit's own event loop to draw and take clicks.
+    if (config_menubar()) [NSApp run];
 
     // Drain autoreleased objects after every event so memory stays flat.
     for (;;) {

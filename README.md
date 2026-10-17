@@ -34,11 +34,12 @@ If you want tiling, layouts, colors or more options, use those projects. just-de
 - Apps can be pinned to a desktop in the config file. A pinned app's windows start on that desktop, both existing ones and ones opened later. The pin applies only when a window first appears.
 - Focusing a window that belongs to another desktop (Cmd-Tab, Dock, a shortcut, unhiding the app) moves that one window to the current desktop instead of switching. Pinned apps are pulled too.
 - The border is a thin ring floating 3pt off the focused window, brighter along the top. It is white in Dark mode and black in Light mode, and the switcher panel has a light and a dark look too. Both follow the system appearance, and the border updates the moment it changes. Turn it off with `border = off` in the config; no border window is created then.
+- An optional menu bar item (`menubar = on`, off by default) shows the current desktop's key in an outlined box, followed by one monochrome glyph per app that has a window on this desktop. The focused app's glyph is cut out of a filled tile. The glyphs are template images, so macOS tints them for light and dark menu bars. Clicking the item offers Quit. It redraws only when the desktop, the focused app or the set of apps changes. AppKit's status item costs about 5MB of memory; with `menubar = off` (the default) none of it is loaded.
 
 ## Design
 
 - **One process.** Workspaces and the border live in the same daemon.
-- **Mostly C.** No Swift runtime and no AppKit UI. The only Objective-C is `src/apps.m`, which listens for app launch, quit and activation events from NSWorkspace.
+- **Mostly C.** No Swift runtime and no AppKit UI by default. The Objective-C is `src/apps.m`, which listens for app launch, quit and activation events from NSWorkspace, and `src/menubar.m`, which creates the status item only when `menubar = on`.
 - **Border through SkyLight**, like JankyBorders, so no NSWindow is created.
 - **Hotkeys through a CGEventTap** on the main run loop. No extra threads.
 
@@ -69,6 +70,7 @@ Upgrading through mise changes the binary path, so run `mise run service` again 
 ```
 border = on
 switcher = on
+menubar = off
 keys = 1 2 3 q w e
 com.apple.Safari = 1
 com.googlecode.iterm2 = 2
