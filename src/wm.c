@@ -31,7 +31,7 @@ static int napps, capapps;
 static int cur = 1;
 static uint32_t last_focus[JD_MAX_WS + 1];
 static bool border_on = true;
-static double follow_block_until;
+static uint32_t stale; // parked window macOS still reports as focused
 static AXUIElementRef sys;
 
 static void ax_cb(AXObserverRef obs, AXUIElementRef el, CFStringRef n, void *ctx);
@@ -77,8 +77,6 @@ static bool near_hide_point(CGPoint p) {
     CGPoint h = hide_point();
     return p.x >= h.x - 4 && p.y >= h.y - 64;
 }
-
-static double now(void) { return CFAbsoluteTimeGetCurrent(); }
 
 // ---- lookup ----
 
@@ -306,12 +304,16 @@ void wm_on_focus(void) {
     win_t *w = focused();
     if (w && w->ws != cur) {
         // Focus moved to a window on another workspace (Cmd-Tab, Dock, ...): follow it.
-        if (now() < follow_block_until) return;
+        if (w->wid == stale) return;
+        stale = 0;
         last_focus[w->ws] = w->wid;
         wm_switch(w->ws);
         return;
     }
-    if (w) last_focus[cur] = w->wid;
+    if (w) {
+        stale = 0;
+        last_focus[cur] = w->wid;
+    }
     refresh_border();
 }
 
@@ -322,12 +324,12 @@ void wm_switch(int ws) {
 
     int old = cur;
     cur = ws;
+    stale = f && f->ws == old ? f->wid : 0;
     for (int i = 0; i < nwins; i++)
         if (wins[i].ws == ws) show(&wins[i]);
     for (int i = 0; i < nwins; i++)
         if (wins[i].ws == old) hide(&wins[i]);
 
-    follow_block_until = now() + 0.4;
     focus_in_current();
     refresh_border();
 }
@@ -340,7 +342,7 @@ void wm_move_focused(int ws) {
     last_focus[ws] = w->wid;
     if (ws != cur) {
         hide(w);
-        follow_block_until = now() + 0.4;
+        stale = w->wid;
         focus_in_current();
     }
     refresh_border();
