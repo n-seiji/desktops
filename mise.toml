@@ -1,0 +1,56 @@
+[env]
+CFLAGS = "-std=gnu11 -O2 -Wall -Wextra -mmacosx-version-min=13.0 -fobjc-arc"
+FRAMEWORKS = "-framework ApplicationServices -framework AppKit -F/System/Library/PrivateFrameworks -framework SkyLight"
+
+[tasks.build]
+description = "Build bin/just-desktops"
+sources = ["src/*"]
+outputs = ["bin/just-desktops"]
+run = [
+  "mkdir -p bin",
+  "clang $CFLAGS src/*.m src/*.c -o bin/just-desktops $FRAMEWORKS",
+  "codesign -fs - bin/just-desktops",
+]
+
+[tasks.run]
+description = "Build and run in the foreground"
+depends = ["build"]
+run = "./bin/just-desktops"
+
+[tasks.dist]
+description = "Build release tarballs for arm64 and x86_64"
+run = '''
+set -eu
+mkdir -p dist
+for arch in arm64 x86_64; do
+  out="dist/$arch/just-desktops"
+  mkdir -p "dist/$arch"
+  clang $CFLAGS -arch "$arch" src/*.m src/*.c -o "$out" $FRAMEWORKS
+  codesign -fs - "$out"
+  tar -czf "dist/just-desktops-darwin-$arch.tar.gz" -C "dist/$arch" just-desktops
+done
+'''
+
+[tasks.service]
+description = "Register a LaunchAgent that starts at login"
+run = '''
+set -eu
+bin="$(mise which just-desktops 2>/dev/null || true)"
+[ -n "$bin" ] || { echo "install first: mise use -g github:n-seiji/desktops" >&2; exit 1; }
+plist="$HOME/Library/LaunchAgents/com.just-desktops.plist"
+launchctl bootout "gui/$(id -u)/com.just-desktops" 2>/dev/null || true
+sed "s|@BIN@|$bin|" launchd/com.just-desktops.plist > "$plist"
+launchctl bootstrap "gui/$(id -u)" "$plist"
+echo "registered: $bin"
+'''
+
+[tasks.unservice]
+description = "Stop and unregister the LaunchAgent"
+run = '''
+launchctl bootout "gui/$(id -u)/com.just-desktops" 2>/dev/null || true
+rm -f "$HOME/Library/LaunchAgents/com.just-desktops.plist"
+'''
+
+[tasks.clean]
+description = "Remove build outputs"
+run = "rm -rf bin dist"

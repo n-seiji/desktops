@@ -1,0 +1,13 @@
+# ~/.config/just-desktops/config
+
+# Show the border at startup (toggle any time with ⌥B)
+border = on
+
+# Number of workspaces (1-10, default 9; the 10th is ⌥0)
+workspaces = 9
+
+# Pin apps to a workspace: <bundle id> = <number>
+# Find a bundle id with: osascript -e 'id of app "Safari"'
+com.apple.Safari = 1
+com.googlecode.iterm2 = 2
+com.tinyspeck.slackmacgap = 3
