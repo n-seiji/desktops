@@ -6,6 +6,7 @@
 
 // ~/.config/just-desktops/config
 //   border = on|off
+//   switcher = on|off     (⌥Tab window switcher)
 //   keys = 1 2 3 q w e    (digits and letters; the n-th key is Desktop n)
 //   <bundle id> = <desktop number>
 
@@ -14,6 +15,7 @@ typedef struct { char id[128]; int ws; } assign_t;
 static assign_t *assigns;
 static int nassigns;
 static bool border = true;
+static bool switcher = true;
 static int keys[JD_MAX_WS] = {0x12, 0x13, 0x14, 0x0C, 0x0D, 0x0E}; // 1 2 3 q w e
 static int nkeys = 6;
 
@@ -25,6 +27,11 @@ static char *trim(char *s) {
     char *e = s + strlen(s);
     while (e > s && isspace((unsigned char)e[-1])) *--e = 0;
     return s;
+}
+
+// "on", "true" and "yes" are on; anything else is off.
+bool config_parse_on(const char *v) {
+    return !strcmp(v, "on") || !strcmp(v, "true") || !strcmp(v, "yes");
 }
 
 // Parses space-separated single characters into virtual keycodes; unknown tokens and
@@ -62,7 +69,11 @@ void config_load(void) {
         char *k = trim(s), *v = trim(eq + 1);
 
         if (!strcmp(k, "border")) {
-            border = !strcmp(v, "on") || !strcmp(v, "true") || !strcmp(v, "yes");
+            border = config_parse_on(v);
+            continue;
+        }
+        if (!strcmp(k, "switcher")) {
+            switcher = config_parse_on(v);
             continue;
         }
         if (!strcmp(k, "keys")) {
@@ -93,6 +104,8 @@ int config_assign(const char *bundle_id) {
 }
 
 bool config_border(void) { return border; }
+
+bool config_switcher(void) { return switcher; }
 
 int config_workspaces(void) { return nkeys; }
 

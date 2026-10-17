@@ -28,7 +28,8 @@ If you want tiling, layouts, colors or more options, use those projects. just-de
 
 - Each switcher row shows the app name when the app has one window. With several, rows show the window titles ("App 2" when a title is empty or repeated).
 - The switcher panel exists only while ⌥ is held after a Tab. Nothing is held in memory while it is closed.
-- ⌥Tab and ⌥⇧Tab are always captured by just-desktops, so apps never see those keys.
+- ⌥Tab and ⌥⇧Tab are captured by just-desktops only while the switcher is on (the default), so apps never see those keys then. With `switcher = off` they pass through to apps and no switcher code runs.
+- The switcher lists only windows that are really shown: windows of other Spaces, hidden apps or parked off screen (such as Raycast's idle window) are left out.
 - The desktop keys are set with `keys` in the config (digits and letters, at most 10). Other keys pass through untouched.
 - Apps can be pinned to a desktop in the config file. Existing and newly opened windows go there.
 - Focusing a window on another workspace (Cmd-Tab, Dock, …) switches to that workspace.
@@ -67,6 +68,7 @@ Upgrading through mise changes the binary path, so run `mise run service` again 
 
 ```
 border = on
+switcher = on
 keys = 1 2 3 q w e
 com.apple.Safari = 1
 com.googlecode.iterm2 = 2
@@ -91,7 +93,7 @@ Pushing a `v*` tag makes GitHub Actions publish arm64 and x86_64 binaries to Rel
 
 - Windows are parked on the main display only; multiple displays are not supported yet.
 - After a crash, parked windows stay in the bottom-right corner until the next launch, which moves them back on screen.
-- ⌥Tab, ⌥⇧Tab and the ⌥ / ⌥⇧ modifiers are fixed; only the desktop keys are configurable.
+- ⌥Tab, ⌥⇧Tab and the ⌥ / ⌥⇧ modifiers are fixed (the switcher can only be turned on or off); only the desktop keys are configurable.
 
 ## License
 

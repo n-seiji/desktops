@@ -10,6 +10,8 @@
 void config_load(void);
 int config_assign(const char *bundle_id);
 bool config_border(void);
+bool config_switcher(void); // ⌥Tab is captured and the window switcher runs
+bool config_parse_on(const char *v);
 int config_workspaces(void); // number of desktops: how many keys are bound
 int config_key(int i);       // virtual keycode of desktop i + 1
 int config_parse_keys(const char *list, int *codes);

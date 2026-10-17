@@ -3,6 +3,9 @@
 # Draw the border around the focused window (on|off)
 border = on
 
+# ⌥Tab window switcher (on|off). When off, ⌥Tab is not captured and passes through to apps
+switcher = on
+
 # Keys that switch desktops with ⌥ (and move the focused window with ⌥⇧).
 # The n-th key is Desktop n. Digits and letters, at most 10. Default: 1 2 3 q w e
 keys = 1 2 3 q w e

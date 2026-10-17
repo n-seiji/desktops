@@ -14,7 +14,20 @@ static void check(const char *list, int n, const int *want) {
     }
 }
 
+static void check_on(const char *v, bool want) {
+    if (config_parse_on(v) != want) {
+        printf("FAIL config_parse_on(\"%s\") = %d; want %d\n", v, !want, want);
+        failed++;
+    }
+}
+
 int main(void) {
+    check_on("on", true);
+    check_on("true", true);
+    check_on("yes", true);
+    check_on("off", false);
+    check_on("", false);
+    check_on("ON", false);
     check("1 2 3 q w e", 6, (int[]){0x12, 0x13, 0x14, 0x0C, 0x0D, 0x0E});
     check("0 9", 2, (int[]){0x1D, 0x19});
     check("  a   j\tz ", 3, (int[]){0x00, 0x26, 0x06});
