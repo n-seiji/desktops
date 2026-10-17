@@ -73,13 +73,15 @@ static void draw(void) {
 }
 
 static void teardown(void) {
-    dispatch_source_cancel(timer);
-    dispatch_release(timer);
-    timer = NULL;
+    if (timer) {
+        dispatch_source_cancel(timer);
+        dispatch_release(timer);
+        timer = NULL;
+    }
     SLSOrderWindow(cid, wid, 0, 0);
-    CGContextRelease(ctx);
+    if (ctx) CGContextRelease(ctx);
     SLSReleaseWindow(cid, wid);
-    CFRelease(font);
+    if (font) CFRelease(font);
     ctx = NULL;
     font = NULL;
     wid = 0;
@@ -128,6 +130,10 @@ void hud_show(int from, int to) {
         SLSSetWindowLevel(cid, wid, CGWindowLevelForKey(kCGPopUpMenuWindowLevelKey));
         ctx = SLWindowContextCreate(cid, wid, NULL);
         font = CTFontCreateUIFontForLanguage(kCTFontUIFontSystem, 20, NULL);
+        if (!ctx || !font) {
+            teardown();
+            return;
+        }
         pos = from_pos = from - 1;
     }
     target = to - 1;
