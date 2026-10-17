@@ -167,8 +167,10 @@ static win_t *track(app_t *a, AXUIElementRef el) {
 
     void *ctx = (void *)(intptr_t)a->pid;
     AXObserverAddNotification(a->obs, el, kAXUIElementDestroyedNotification, ctx);
-    AXObserverAddNotification(a->obs, el, kAXMovedNotification, ctx);
-    AXObserverAddNotification(a->obs, el, kAXResizedNotification, ctx);
+    if (border_on) {
+        AXObserverAddNotification(a->obs, el, kAXMovedNotification, ctx);
+        AXObserverAddNotification(a->obs, el, kAXResizedNotification, ctx);
+    }
     AXObserverAddNotification(a->obs, el, kAXWindowMiniaturizedNotification, ctx);
     AXObserverAddNotification(a->obs, el, kAXWindowDeminiaturizedNotification, ctx);
 
@@ -201,10 +203,11 @@ static win_t *focused(void) {
 }
 
 static void refresh_border(void) {
+    if (!border_on) return;
     win_t *w = focused();
     CGPoint p;
     CGSize s;
-    if (!border_on || !w || w->hidden || w->ws != cur ||
+    if (!w || w->hidden || w->ws != cur ||
         get_bool(w->el, kAXMinimizedAttribute) || get_bool(w->el, CFSTR("AXFullScreen")) ||
         !get_value(w->el, kAXPositionAttribute, kAXValueTypeCGPoint, &p) ||
         !get_value(w->el, kAXSizeAttribute, kAXValueTypeCGSize, &s)) {
