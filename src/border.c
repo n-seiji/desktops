@@ -96,14 +96,25 @@ void border_show(CGRect frame, uint32_t target_wid) {
         return;
     }
 
+    bool same = shown && target_wid == last_target;
+    if (same && CGRectEqualToRect(outer, last_outer)) return;
+
     SLSDisableUpdate(cid);
-    if (!shown || target_wid != last_target || !CGRectEqualToRect(outer, last_outer))
+    if (same && CGSizeEqualToSize(outer.size, last_outer.size)) { // dragged: only the position changed
+        for (int e = 0; e < NEDGES; e++) {
+            CGPoint o = edge_rect(e, outer).origin;
+            SLSMoveWindow(cid, edges[e].wid, &o);
+        }
+    } else {
         for (int e = 0; e < NEDGES; e++) draw_edge(e, outer);
-    int level = 0;
-    SLSGetWindowLevel(cid, target_wid, &level);
-    for (int e = 0; e < NEDGES; e++) {
-        SLSSetWindowLevel(cid, edges[e].wid, level);
-        SLSOrderWindow(cid, edges[e].wid, 1, target_wid); // 1 = above
+    }
+    if (!same) {
+        int level = 0;
+        SLSGetWindowLevel(cid, target_wid, &level);
+        for (int e = 0; e < NEDGES; e++) {
+            SLSSetWindowLevel(cid, edges[e].wid, level);
+            SLSOrderWindow(cid, edges[e].wid, 1, target_wid); // 1 = above
+        }
     }
     SLSReenableUpdate(cid);
     shown = true;
