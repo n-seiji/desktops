@@ -42,22 +42,25 @@ pid_t apps_frontmost(void) {
 }
 
 CGImageRef apps_icon(pid_t pid, int px) {
-    NSImage *img = [NSRunningApplication runningApplicationWithProcessIdentifier:pid].icon;
-    if (!img) return NULL;
-    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
-    CGContextRef c = CGBitmapContextCreate(NULL, px, px, 8, 0, cs, (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
-    CGColorSpaceRelease(cs);
-    if (!c) return NULL;
-    NSGraphicsContext *g = [NSGraphicsContext graphicsContextWithCGContext:c flipped:NO];
-    [NSGraphicsContext saveGraphicsState];
-    NSGraphicsContext.currentContext = g;
-    [img drawInRect:NSMakeRect(0, 0, px, px)];
-    [NSGraphicsContext restoreGraphicsState];
-    CGImageRef out = CGBitmapContextCreateImage(c);
-    CGContextRelease(c);
-    return out;
+    @autoreleasepool {
+        NSImage *img = [NSRunningApplication runningApplicationWithProcessIdentifier:pid].icon;
+        NSRect r = NSMakeRect(0, 0, px, px);
+        CGImageRef src = [img CGImageForProposedRect:&r context:nil hints:nil];
+        if (!src) return NULL;
+        CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+        CGContextRef c = CGBitmapContextCreate(NULL, px, px, 8, 0, cs, (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
+        CGColorSpaceRelease(cs);
+        if (!c) return NULL;
+        CGContextSetInterpolationQuality(c, kCGInterpolationHigh);
+        CGContextDrawImage(c, CGRectMake(0, 0, px, px), src);
+        CGImageRef out = CGBitmapContextCreateImage(c);
+        CGContextRelease(c);
+        return out;
+    }
 }
 
 CFStringRef apps_name(pid_t pid) {
-    return (CFStringRef)CFBridgingRetain([NSRunningApplication runningApplicationWithProcessIdentifier:pid].localizedName);
+    @autoreleasepool {
+        return (CFStringRef)CFBridgingRetain([NSRunningApplication runningApplicationWithProcessIdentifier:pid].localizedName);
+    }
 }

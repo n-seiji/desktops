@@ -2,6 +2,7 @@
 #include "extern.h"
 #include <CoreText/CoreText.h>
 #include <dispatch/dispatch.h>
+#include <malloc/malloc.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -282,6 +283,7 @@ static void close_panel(void) {
     ctx = NULL;
     wid = 0;
     n = 0;
+    malloc_zone_pressure_relief(NULL, 0);
 }
 
 static void tick(void) {
