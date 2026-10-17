@@ -26,7 +26,8 @@ static int n, sel, top, rows;
 static CGSize size;
 static double pos, from_pos, t0;
 
-static void draw_text(CGContextRef c, CFStringRef s, CTFontRef font, CGFloat alpha, CGFloat x, CGFloat y, CGFloat maxw) {
+static void draw_text(CGContextRef c, CFStringRef s, CTFontRef font, CGFloat alpha, CGFloat x, CGFloat y, CGFloat maxw,
+                      CTLineTruncationType how) {
     CGColorRef col = CGColorCreateSRGB(1, 1, 1, alpha);
     CFStringRef keys[] = {kCTFontAttributeName, kCTForegroundColorAttributeName};
     CFTypeRef vals[] = {font, col};
@@ -37,7 +38,7 @@ static void draw_text(CGContextRef c, CFStringRef s, CTFontRef font, CGFloat alp
     if (CTLineGetTypographicBounds(line, NULL, NULL, NULL) > maxw) {
         CFAttributedStringRef dots = CFAttributedStringCreate(NULL, CFSTR("\xE2\x80\xA6"), at);
         CTLineRef token = CTLineCreateWithAttributedString(dots);
-        CTLineRef cut = CTLineCreateTruncatedLine(line, maxw, kCTLineTruncationEnd, token);
+        CTLineRef cut = CTLineCreateTruncatedLine(line, maxw, how, token);
         CFRelease(token);
         CFRelease(dots);
         if (cut) {
@@ -51,6 +52,10 @@ static void draw_text(CGContextRef c, CFStringRef s, CTFontRef font, CGFloat alp
     CFRelease(as);
     CFRelease(at);
     CGColorRelease(col);
+}
+
+static bool is_path(CFStringRef s) {
+    return CFStringHasPrefix(s, CFSTR("~/")) || CFStringHasPrefix(s, CFSTR("/"));
 }
 
 // All of the panel's looks live here.
@@ -75,8 +80,9 @@ static void draw(CGContextRef c) {
         sw_entry_t *e = &ents[top + r];
         CGFloat y = size.height - PAD - (r + 1) * ROW_H;
         if (e->icon) CGContextDrawImage(c, (CGRect){{PAD, y + (ROW_H - ICON) / 2}, {ICON, ICON}}, e->icon);
-        if (e->app) draw_text(c, e->app, font_b, 1, tx, y + ROW_H / 2 + 2, tw);
-        if (e->title) draw_text(c, e->title, font_p, 0.6, tx, y + ROW_H / 2 - 14, tw);
+        CFStringRef main = e->title ? e->title : e->app;
+        if (main) draw_text(c, main, font_b, 1, tx, y + ROW_H / 2 + 2, tw, is_path(main) ? kCTLineTruncationStart : kCTLineTruncationEnd);
+        if (e->title && e->app) draw_text(c, e->app, font_p, 0.6, tx, y + ROW_H / 2 - 14, tw, kCTLineTruncationEnd);
     }
 }
 

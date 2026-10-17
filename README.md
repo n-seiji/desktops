@@ -72,6 +72,7 @@ Requires the Xcode Command Line Tools (`xcode-select --install`) and [mise](http
 ```sh
 mise run build   # build bin/just-desktops
 mise run run     # build and run in the foreground
+mise run test    # run the unit tests
 mise tasks       # list all tasks
 ```
 

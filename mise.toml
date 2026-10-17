@@ -12,6 +12,14 @@ run = [
   "codesign -fs - bin/just-desktops",
 ]
 
+[tasks.test]
+description = "Run unit tests"
+run = [
+  "mkdir -p bin",
+  "clang $CFLAGS tests/title_test.c src/title.c -o bin/title_test -framework CoreFoundation",
+  "bin/title_test",
+]
+
 [tasks.run]
 description = "Build and run in the foreground"
 depends = ["build"]

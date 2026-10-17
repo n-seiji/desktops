@@ -27,6 +27,10 @@ void switcher_step(int dir);
 void switcher_commit(void);
 void switcher_cancel(void);
 
+// title.c
+// +1 title without its " - <app>" tail, or NULL when only the app name is left.
+CFStringRef title_clean(CFStringRef title, CFStringRef app);
+
 // hotkey.c
 bool hotkey_init(void);
 
