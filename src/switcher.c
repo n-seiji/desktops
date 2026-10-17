@@ -7,9 +7,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-// Window switcher panel (hold ⌥, press Tab). The window, its context, the fonts,
+// Window switcher panel (hold ⌥, press Tab). The windows, their contexts, the fonts,
 // the icons and the entries exist only while the panel is open; the animation
 // timer runs only while the highlight is moving.
+//
+// The highlight is its own small window that slides over the panel. Flushing the
+// panel's context again makes SkyLight keep up to two more full-size backing
+// surfaces (~4.6MB each) for about a second, so the panel is flushed once and the
+// animation only moves the highlight window.
 
 #define PANEL_W 640.0
 #define RADIUS 26.0
@@ -30,13 +35,14 @@ static const struct { CGFloat size, weight; } font_specs[NFONTS] = {
 };
 
 static int cid;
-static uint32_t wid;
-static CGContextRef ctx;
+static uint32_t wid, hwid;
+static CGContextRef ctx, hctx;
 static CTFontRef fonts[NFONTS];
 static dispatch_source_t timer;
 static sw_entry_t *ents;
 static int n, sel, top, rows;
 static CGSize size;
+static CGPoint origin;
 static double pos, from_pos, t0;
 
 static CTFontRef make_font(CGFloat sz, CGFloat weight) {
@@ -247,12 +253,23 @@ static void draw(CGContextRef c) {
     edge_rrect(c, all, RADIUS, 0xffffff, 0.16);
 
     draw_header(c);
-    double hy = fmin(fmax(pos - top, 0), rows - 1);
-    fill_rrect(c, (CGRect){{ROW_INSET, HEADER_H + LABEL_H + hy * (ROW_H + ROW_GAP)}, {size.width - 2 * ROW_INSET, ROW_H}},
-               12, 0xffffff, 0.09);
     for (int r = 0; r < rows; r++) draw_row(c, &ents[top + r], HEADER_H + LABEL_H + r * (ROW_H + ROW_GAP));
     draw_footer(c);
     CGContextRestoreGState(c);
+}
+
+static CGSize hl_size(void) {
+    return CGSizeMake(size.width - 2 * ROW_INSET, ROW_H);
+}
+
+static void draw_highlight(CGContextRef c) {
+    CGContextClearRect(c, (CGRect){{0, 0}, hl_size()});
+    fill_rrect(c, (CGRect){{0, 0}, hl_size()}, 12, 0xffffff, 0.09);
+}
+
+static CGPoint hl_origin(void) {
+    double hy = fmin(fmax(pos - top, 0), rows - 1);
+    return CGPointMake(origin.x + ROW_INSET, origin.y + HEADER_H + LABEL_H + hy * (ROW_H + ROW_GAP));
 }
 
 static void stop_timer(void) {
@@ -269,6 +286,11 @@ static void close_panel(void) {
         if (ctx) CGContextRelease(ctx);
         SLSReleaseWindow(cid, wid);
     }
+    if (hwid) {
+        SLSOrderWindow(cid, hwid, 0, 0);
+        if (hctx) CGContextRelease(hctx);
+        SLSReleaseWindow(cid, hwid);
+    }
     for (int i = 0; i < NFONTS; i++) {
         if (fonts[i]) CFRelease(fonts[i]);
         fonts[i] = NULL;
@@ -280,8 +302,8 @@ static void close_panel(void) {
     }
     free(ents);
     ents = NULL;
-    ctx = NULL;
-    wid = 0;
+    ctx = hctx = NULL;
+    wid = hwid = 0;
     n = 0;
     malloc_zone_pressure_relief(NULL, 0);
 }
@@ -295,8 +317,27 @@ static void tick(void) {
         k = 1 - k;
         pos = sel + (from_pos - sel) * k * k * k; // ease-out cubic
     }
-    draw(ctx);
-    CGContextFlush(ctx);
+    CGPoint o = hl_origin();
+    SLSMoveWindow(cid, hwid, &o);
+}
+
+// A translucent, mouse-transparent window at (x, y) of the given size, drawn at 2x.
+static uint32_t make_window(CGPoint at, CGSize sz, CGContextRef *out) {
+    CGRect r = {{0, 0}, sz};
+    CFTypeRef region = NULL;
+    CGSNewRegionWithRect(&r, &region);
+    if (!region) return 0;
+    uint32_t w = 0;
+    SLSNewWindow(cid, 2, at.x, at.y, region, &w);
+    CFRelease(region);
+    if (!w) return 0;
+    uint64_t tags[2] = {(1ULL << 1) | (1ULL << 9), 0}; // floating, ignores mouse events
+    SLSSetWindowTags(cid, w, tags, 64);
+    SLSSetWindowResolution(cid, w, 2.0);
+    SLSSetWindowOpacity(cid, w, false);
+    SLSSetWindowLevel(cid, w, CGWindowLevelForKey(kCGPopUpMenuWindowLevelKey));
+    *out = SLWindowContextCreate(cid, w, NULL);
+    return w;
 }
 
 static void open_panel(int dir) {
@@ -311,27 +352,15 @@ static void open_panel(int dir) {
     pos = from_pos = sel;
     size = CGSizeMake(PANEL_W, HEADER_H + LABEL_H + rows * (ROW_H + ROW_GAP) + FOOT_H);
     CGRect d = CGDisplayBounds(CGMainDisplayID());
-    CGRect r = {{0, 0}, size};
-    CFTypeRef region = NULL;
-    CGSNewRegionWithRect(&r, &region);
-    if (!region) {
+    origin = CGPointMake(d.origin.x + (d.size.width - size.width) / 2, d.origin.y + (d.size.height - size.height) / 2);
+    wid = make_window(origin, size, &ctx);
+    CGPoint o = hl_origin();
+    hwid = wid ? make_window(o, hl_size(), &hctx) : 0;
+    if (!hwid) {
         close_panel();
         return;
     }
-    SLSNewWindow(cid, 2, d.origin.x + (d.size.width - size.width) / 2, d.origin.y + (d.size.height - size.height) / 2,
-                 region, &wid);
-    CFRelease(region);
-    if (!wid) {
-        close_panel();
-        return;
-    }
-    uint64_t tags[2] = {(1ULL << 1) | (1ULL << 9), 0}; // floating, ignores mouse events
-    SLSSetWindowTags(cid, wid, tags, 64);
-    SLSSetWindowResolution(cid, wid, 2.0);
-    SLSSetWindowOpacity(cid, wid, false);
-    SLSSetWindowLevel(cid, wid, CGWindowLevelForKey(kCGPopUpMenuWindowLevelKey));
-    ctx = SLWindowContextCreate(cid, wid, NULL);
-    bool ok = ctx;
+    bool ok = ctx && hctx;
     for (int i = 0; i < NFONTS; i++) ok = (fonts[i] = make_font(font_specs[i].size, font_specs[i].weight)) && ok;
     if (!ok) {
         close_panel();
@@ -339,7 +368,10 @@ static void open_panel(int dir) {
     }
     draw(ctx);
     CGContextFlush(ctx);
+    draw_highlight(hctx);
+    CGContextFlush(hctx);
     SLSOrderWindow(cid, wid, 1, 0);
+    SLSOrderWindow(cid, hwid, 1, wid);
 }
 
 void switcher_step(int dir) {
@@ -349,8 +381,13 @@ void switcher_step(int dir) {
     }
     from_pos = pos;
     sel = ((sel + dir) % n + n) % n;
+    int old = top;
     if (sel < top) top = sel;
     else if (sel >= top + rows) top = sel - rows + 1;
+    if (top != old) {
+        draw(ctx);
+        CGContextFlush(ctx);
+    }
     t0 = CFAbsoluteTimeGetCurrent();
     if (timer) return;
     timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
