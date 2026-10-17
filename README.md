@@ -31,8 +31,8 @@ If you want tiling, layouts, colors or more options, use those projects. just-de
 - ⌥Tab and ⌥⇧Tab are captured by just-desktops only while the switcher is on (the default), so apps never see those keys then. With `switcher = off` they pass through to apps and no switcher code runs.
 - The switcher lists only windows that are really shown: windows of other Spaces, hidden apps or parked off screen (such as Raycast's idle window) are left out.
 - The desktop keys are set with `keys` in the config (digits and letters, at most 10). Other keys pass through untouched.
-- Apps can be pinned to a desktop in the config file. Existing and newly opened windows go there.
-- Focusing a window on another workspace (Cmd-Tab, Dock, …) switches to that workspace.
+- Apps can be pinned to a desktop in the config file. A pinned app's windows start on that desktop, both existing ones and ones opened later. The pin applies only when a window first appears.
+- Focusing a window that belongs to another desktop (Cmd-Tab, Dock, a shortcut, unhiding the app) moves that one window to the current desktop instead of switching. Pinned apps are pulled too.
 - The border is a thin ring floating 3pt off the focused window, brighter along the top. It is white in Dark mode and black in Light mode, and the switcher panel has a light and a dark look too. Both follow the system appearance, and the border updates the moment it changes. Turn it off with `border = off` in the config; no border window is created then.
 
 ## Design

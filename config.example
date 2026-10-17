@@ -11,6 +11,7 @@ switcher = on
 keys = 1 2 3 q w e
 
 # Pin apps to a desktop: <bundle id> = <desktop number>
+# A pin applies when a window first appears (app launch or new window); focusing it later pulls it to the current desktop.
 # Find a bundle id with: osascript -e 'id of app "Safari"'
 com.apple.Safari = 1
 com.googlecode.iterm2 = 2

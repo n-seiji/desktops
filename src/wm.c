@@ -304,12 +304,10 @@ void wm_init(void) {
 void wm_on_focus(void) {
     win_t *w = focused();
     if (w && w->ws != cur) {
-        // Focus moved to a window on another workspace (Cmd-Tab, Dock, ...): follow it.
+        // A parked window took focus (Cmd-Tab, Dock, launch, unhide): pull it here, unless it is the one we just parked.
         if (w->wid == stale) return;
-        stale = 0;
-        last_focus[w->ws] = w->wid;
-        wm_switch(w->ws);
-        return;
+        w->ws = cur;
+        show(w);
     }
     if (w) {
         stale = 0;
