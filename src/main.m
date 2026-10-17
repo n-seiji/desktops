@@ -31,7 +31,6 @@ int main(int argc, char **argv) {
             fprintf(stderr, "just-desktops: waiting for Accessibility permission\n");
             while (!AXIsProcessTrusted()) sleep(2);
         }
-        NSApplicationLoad();
         config_load();
         if (config_border()) border_init();
         wm_init();
