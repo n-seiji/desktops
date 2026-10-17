@@ -19,6 +19,7 @@ If you want tiling, layouts, colors or more options, use those projects. just-de
 | ⌥⇧1 … ⌥⇧9 (⌥⇧0) | Move the focused window to that workspace |
 | ⌥Tab / ⌥⇧Tab (hold ⌥) | Open a list of the windows in this workspace and move the selection forward / backward (wraps around). Release ⌥ to switch to the selected window; Esc cancels |
 
+- Each switcher row shows the app name when the app has one window. With several, rows show the window titles ("App 2" when a title is empty or repeated).
 - The switcher panel exists only while ⌥ is held after a Tab. Nothing is held in memory while it is closed.
 - ⌥Tab and ⌥⇧Tab are always captured by just-desktops, so apps never see those keys.
 - Apps can be pinned to a workspace in the config file. Existing and newly opened windows go there.

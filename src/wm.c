@@ -358,8 +358,34 @@ int wm_current(void) {
     return cur;
 }
 
+// Replaces each entry's title with its row text: see title_labels.
+static void label_entries(sw_entry_t *list, int n) {
+    int *at = malloc(sizeof *at * n);
+    CFStringRef *titles = malloc(sizeof *titles * n * 2), *labels = titles + n;
+    if (at && titles) {
+        for (int i = 0; i < n; i++) {
+            bool first = list[i].app != NULL;
+            for (int j = 0; j < i && first; j++) first = !list[j].app || !CFEqual(list[j].app, list[i].app);
+            if (!first) continue;
+            int k = 0;
+            for (int j = i; j < n; j++) {
+                if (!list[j].app || !CFEqual(list[j].app, list[i].app)) continue;
+                at[k] = j;
+                titles[k++] = list[j].title;
+            }
+            title_labels(list[i].app, titles, k, labels);
+            for (int m = 0; m < k; m++) {
+                if (list[at[m]].title) CFRelease(list[at[m]].title);
+                list[at[m]].title = labels[m];
+            }
+        }
+    }
+    free(at);
+    free(titles);
+}
+
 // Switchable windows of the current workspace in array order. *out is malloc'd with
-// +1 icon/app/title per entry (title is NULL when the window shows only its app name) (the caller releases them); *sel is the window after the
+// +1 icon/app/title per entry (title is the row text; the caller releases them); *sel is the window after the
 // focused one (before it for dir < 0).
 int wm_windows(int dir, sw_entry_t **out, int *sel) {
     sw_entry_t *list = malloc(sizeof *list * (nwins ? nwins : 1));
@@ -374,6 +400,7 @@ int wm_windows(int dir, sw_entry_t **out, int *sel) {
         list[n++] = (sw_entry_t){w->wid, apps_icon(w->pid, 44), app, raw ? title_clean(raw, app) : NULL};
         if (raw) CFRelease(raw);
     }
+    label_entries(list, n);
     *sel = n ? (at < 0 ? (dir > 0 ? 0 : n - 1) : ((at + dir) % n + n) % n) : 0;
     *out = list;
     return n;

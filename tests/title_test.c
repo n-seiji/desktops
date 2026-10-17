@@ -20,6 +20,27 @@ static void check(const char *title, const char *app, const char *want) {
     CFRelease(a);
 }
 
+static CFStringRef cf(const char *s) {
+    return s ? CFStringCreateWithCString(NULL, s, kCFStringEncodingUTF8) : NULL;
+}
+
+static void check_labels(const char *app, const char *titles[], int n, const char *want[]) {
+    CFStringRef a = cf(app), t[8], out[8];
+    for (int i = 0; i < n; i++) t[i] = cf(titles[i]);
+    title_labels(a, t, n, out);
+    for (int i = 0; i < n; i++) {
+        char got[256];
+        CFStringGetCString(out[i], got, sizeof got, kCFStringEncodingUTF8);
+        if (strcmp(got, want[i])) {
+            printf("FAIL title_labels(\"%s\", n=%d)[%d] = \"%s\"; want \"%s\"\n", app, n, i, got, want[i]);
+            failed++;
+        }
+        CFRelease(out[i]);
+        if (t[i]) CFRelease(t[i]);
+    }
+    CFRelease(a);
+}
+
 int main(void) {
     check("just-desktops ⌥Tab スイッチャー案 - Google Chrome - Seiji", "Google Chrome", "just-desktops ⌥Tab スイッチャー案");
     check("product-sre（チャンネル） - miive - Slack", "Slack", "product-sre（チャンネル） - miive");
@@ -32,6 +53,10 @@ int main(void) {
     check("  padded  - Slack", "Slack", "padded");
     check("", "Slack", NULL);
     check("  ", "Slack", NULL);
+    check_labels("Slack", (const char *[]){"general"}, 1, (const char *[]){"Slack"});
+    check_labels("Google Chrome", (const char *[]){"Docs", "Inbox"}, 2, (const char *[]){"Docs", "Inbox"});
+    check_labels("Code", (const char *[]){NULL, NULL}, 2, (const char *[]){"Code 1", "Code 2"});
+    check_labels("Code", (const char *[]){"main.c", NULL, "main.c"}, 3, (const char *[]){"main.c", "Code 2", "main.c 3"});
     puts(failed ? "FAILED" : "ok");
     return failed != 0;
 }

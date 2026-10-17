@@ -3,6 +3,7 @@
 
 // Window titles often end in " - <app name>" (browsers add a profile after it too).
 // Strip that tail so the title alone is the primary text. NULL means app-only.
+// An app with one window is listed by its name; with several, each shows its title.
 
 static bool is_sep(const UniChar *s, CFIndex i, CFIndex len) {
     return i + 2 < len && s[i] == ' ' && s[i + 2] == ' ' && (s[i + 1] == '-' || s[i + 1] == 0x2014 || s[i + 1] == 0x2013);
@@ -45,4 +46,19 @@ CFStringRef title_clean(CFStringRef title, CFStringRef app) {
     free(s);
     if (!r.length || (app && is_app(title, app, r))) return NULL;
     return CFStringCreateWithSubstring(NULL, title, r);
+}
+
+void title_labels(CFStringRef app, const CFStringRef *titles, int n, CFStringRef *out) {
+    for (int i = 0; i < n; i++) {
+        if (n == 1) out[i] = CFRetain(app);
+        else if (titles[i]) out[i] = CFRetain(titles[i]);
+        else out[i] = CFStringCreateWithFormat(NULL, NULL, CFSTR("%@ %d"), app, i + 1);
+        for (int j = 0; j < i; j++) {
+            if (!CFEqual(out[j], out[i])) continue;
+            CFStringRef numbered = CFStringCreateWithFormat(NULL, NULL, CFSTR("%@ %d"), out[i], i + 1);
+            CFRelease(out[i]);
+            out[i] = numbered;
+            break;
+        }
+    }
 }
