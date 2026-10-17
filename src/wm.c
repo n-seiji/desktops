@@ -1,6 +1,7 @@
 #include "jd.h"
 #include "extern.h"
 #include <dispatch/dispatch.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -386,7 +387,42 @@ static void label_entries(sw_entry_t *list, int n) {
     free(titles);
 }
 
-// Switchable windows of the current workspace in array order. *out is malloc'd with
+// WindowServer's view of the windows that are really shown right now: on screen, not
+// transparent, and with a visible part on a display. NULL when the list is unavailable.
+static CFArrayRef shown_windows(void) {
+    return CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
+                                      kCGNullWindowID);
+}
+
+static bool is_shown(CFArrayRef shown, uint32_t wid) {
+    if (!shown) return true;
+    CGDirectDisplayID ds[8];
+    uint32_t nd = 0;
+    CGGetActiveDisplayList(8, ds, &nd);
+    for (CFIndex i = 0; i < CFArrayGetCount(shown); i++) {
+        CFDictionaryRef d = CFArrayGetValueAtIndex(shown, i);
+        int num = 0;
+        CFNumberRef n = CFDictionaryGetValue(d, kCGWindowNumber);
+        if (!n || !CFNumberGetValue(n, kCFNumberIntType, &num) || (uint32_t)num != wid) continue;
+        double alpha = 1;
+        n = CFDictionaryGetValue(d, kCGWindowAlpha);
+        if (n) CFNumberGetValue(n, kCFNumberDoubleType, &alpha);
+        CGRect r;
+        CFDictionaryRef b = CFDictionaryGetValue(d, kCGWindowBounds);
+        if (alpha <= 0 || !b || !CGRectMakeWithDictionaryRepresentation(b, &r)) return false;
+        for (uint32_t k = 0; k < nd; k++) {
+            CGRect v = CGRectIntersection(r, CGDisplayBounds(ds[k]));
+            if (!CGRectIsNull(v) && r.size.width > 0 && r.size.height > 0 &&
+                v.size.width >= fmin(r.size.width, 32) && v.size.height >= fmin(r.size.height, 32))
+                return true;
+        }
+        return false;
+    }
+    return false;
+}
+
+// Switchable windows of the current workspace in array order, skipping any WindowServer
+// does not show (hidden app, other Space, alpha 0, parked off screen). *out is malloc'd with
 // +1 icon/app/title per entry (title is the row text; the caller releases them); *sel is the window after the
 // focused one (before it for dir < 0).
 int wm_windows(int dir, sw_entry_t **out, int *sel) {
@@ -394,14 +430,16 @@ int wm_windows(int dir, sw_entry_t **out, int *sel) {
     if (!list) return 0;
     win_t *f = focused();
     int n = 0, at = -1;
+    CFArrayRef shown = shown_windows();
     for (int i = 0; i < nwins; i++) {
         win_t *w = &wins[i];
-        if (w->ws != cur || w->hidden || get_bool(w->el, kAXMinimizedAttribute)) continue;
+        if (w->ws != cur || w->hidden || get_bool(w->el, kAXMinimizedAttribute) || !is_shown(shown, w->wid)) continue;
         if (w == f) at = n;
         CFStringRef app = apps_name(w->pid), raw = title_of(w->el);
         list[n++] = (sw_entry_t){w->wid, apps_icon(w->pid, 56), app, raw ? title_clean(raw, app) : NULL};
         if (raw) CFRelease(raw);
     }
+    if (shown) CFRelease(shown);
     label_entries(list, n);
     *sel = n ? (at < 0 ? (dir > 0 ? 0 : n - 1) : ((at + dir) % n + n) % n) : 0;
     *out = list;
