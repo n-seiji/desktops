@@ -36,3 +36,7 @@ void apps_init(void) {
     [nc addObserver:observer selector:@selector(activated:) name:NSWorkspaceDidActivateApplicationNotification object:nil];
     for (NSRunningApplication *app in NSWorkspace.sharedWorkspace.runningApplications) add(app);
 }
+
+pid_t apps_frontmost(void) {
+    return NSWorkspace.sharedWorkspace.frontmostApplication.processIdentifier;
+}

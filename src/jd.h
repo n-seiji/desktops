@@ -31,3 +31,4 @@ void wm_restore_all(void);
 
 // apps.m
 void apps_init(void);
+pid_t apps_frontmost(void);

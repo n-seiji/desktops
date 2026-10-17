@@ -179,8 +179,12 @@ static win_t *track(app_t *a, AXUIElementRef el) {
 static win_t *focused(void) {
     AXUIElementRef app = NULL, win = NULL;
     win_t *w = NULL;
-    if (AXUIElementCopyAttributeValue(sys, kAXFocusedApplicationAttribute, (CFTypeRef *)&app) != kAXErrorSuccess || !app)
-        return NULL;
+    // The system-wide query fails for some apps (Slack: kAXErrorCannotComplete); ask the frontmost app itself.
+    if (AXUIElementCopyAttributeValue(sys, kAXFocusedApplicationAttribute, (CFTypeRef *)&app) != kAXErrorSuccess || !app) {
+        app_t *a = find_app(apps_frontmost());
+        if (!a) return NULL;
+        app = (AXUIElementRef)CFRetain(a->el);
+    }
     if (AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute, (CFTypeRef *)&win) == kAXErrorSuccess && win) {
         uint32_t wid = 0;
         if (_AXUIElementGetWindow(win, &wid) == kAXErrorSuccess) w = find_wid(wid);
@@ -341,7 +345,6 @@ void wm_move_focused(int ws) {
 
 void wm_cycle(int dir) {
     win_t *f = focused();
-    if (!f) f = find_wid(last_focus[cur]); // some apps (Slack) fail the AX focus query
     int start = f && f->ws == cur ? (int)(f - wins) : -1;
     for (int k = 1; k <= nwins; k++) {
         int i = start < 0 ? (dir > 0 ? k - 1 : nwins - k) : ((start + dir * k) % nwins + nwins) % nwins;
