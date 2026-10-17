@@ -32,7 +32,7 @@ If you want tiling, layouts, colors or more options, use those projects. just-de
 - The desktop keys are set with `keys` in the config (digits and letters, at most 10). Other keys pass through untouched.
 - Apps can be pinned to a desktop in the config file. Existing and newly opened windows go there.
 - Focusing a window on another workspace (Cmd-Tab, Dock, …) switches to that workspace.
-- The border is a thin white ring floating 3pt off the focused window, brighter along the top. Turn it off with `border = off` in the config; no border window is created then.
+- The border is a thin ring floating 3pt off the focused window, brighter along the top. It is white in Dark mode and black in Light mode, and the switcher panel has a light and a dark look too. Both follow the system appearance, and the border updates the moment it changes. Turn it off with `border = off` in the config; no border window is created then.
 
 ## Design
 

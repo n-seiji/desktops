@@ -14,6 +14,9 @@ int config_workspaces(void); // number of desktops: how many keys are bound
 int config_key(int i);       // virtual keycode of desktop i + 1
 int config_parse_keys(const char *list, int *codes);
 
+// appearance.c
+bool appearance_dark(void); // the system is in Dark mode
+
 // border.c
 void border_init(void);
 void border_show(CGRect frame, uint32_t target_wid);

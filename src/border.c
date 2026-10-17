@@ -15,9 +15,14 @@
 #define EDGE_THICKNESS (WINDOW_RADIUS + RING_OUTSET) // top/bottom: tall enough to hold the corner arcs
 #define SIDE_THICKNESS ceil(RING_WIDTH) // left/right only hold the straight part of the ring
 
-#define RIM_ALPHA 0.9 // ring alpha at the very top ...
-#define RING_ALPHA 0.6 // ... easing to this
 #define RIM_FADE 0.18 // fraction of the ring's height the easing takes
+
+// The ring is white in Dark mode and black in Light mode; its alpha is strongest
+// at the very top (rim) and eases to ring over RIM_FADE.
+typedef struct {
+    CGFloat gray, rim, ring;
+} palette_t;
+static const palette_t DARK = {1, 0.9, 0.6}, LIGHT = {0, 0.75, 0.55};
 
 enum { TOP, BOTTOM, LEFT, RIGHT, NEDGES };
 
@@ -30,6 +35,7 @@ static int cid;
 static bool shown;
 static uint32_t last_target;
 static CGRect last_outer;
+static const palette_t *pal = &DARK;
 
 // Window rects are snapped out to whole points (the ring itself sits at
 // fractional offsets inside them); a window at a half-point origin leaves an
@@ -46,8 +52,14 @@ static CGRect edge_rect(int e, CGRect o) {
     return CGRectIntegral(r);
 }
 
+static void appearance_changed(CFNotificationCenterRef, void *, CFNotificationName, const void *, CFDictionaryRef);
+
 void border_init(void) {
     cid = SLSMainConnectionID();
+    pal = appearance_dark() ? &DARK : &LIGHT;
+    CFNotificationCenterAddObserver(CFNotificationCenterGetDistributedCenter(), NULL, appearance_changed,
+                                    CFSTR("AppleInterfaceThemeChangedNotification"), NULL,
+                                    CFNotificationSuspensionBehaviorDeliverImmediately);
     for (int e = 0; e < NEDGES; e++) {
         CGRect r = {{0, 0}, {1, 1}};
         CFTypeRef region = NULL;
@@ -103,8 +115,8 @@ static void draw_edge(int e, CGRect outer) {
         CGFloat u = (CGFloat)i / (STOPS - 1);
         CGFloat ease = u * u * (3 - 2 * u); // smoothstep
         locs[i] = u;
-        comps[i * 4] = comps[i * 4 + 1] = comps[i * 4 + 2] = 1;
-        comps[i * 4 + 3] = RIM_ALPHA + (RING_ALPHA - RIM_ALPHA) * ease;
+        comps[i * 4] = comps[i * 4 + 1] = comps[i * 4 + 2] = pal->gray;
+        comps[i * 4 + 3] = pal->rim + (pal->ring - pal->rim) * ease;
     }
     CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
     CGGradientRef grad = CGGradientCreateWithColorComponents(space, comps, locs, STOPS);
@@ -114,6 +126,17 @@ static void draw_edge(int e, CGRect outer) {
     CGColorSpaceRelease(space);
     CGContextRestoreGState(ctx);
     CGContextFlush(ctx);
+}
+
+// Redraws the shown ring in the new appearance.
+static void appearance_changed(CFNotificationCenterRef center __unused, void *observer __unused,
+                               CFNotificationName name __unused, const void *object __unused,
+                               CFDictionaryRef info __unused) {
+    pal = appearance_dark() ? &DARK : &LIGHT;
+    if (!shown) return;
+    SLSDisableUpdate(cid);
+    for (int e = 0; e < NEDGES; e++) draw_edge(e, last_outer);
+    SLSReenableUpdate(cid);
 }
 
 void border_show(CGRect frame, uint32_t target_wid) {

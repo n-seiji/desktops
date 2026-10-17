@@ -28,6 +28,17 @@
 #define MAX_ROWS 9
 #define SLIDE_MS 120.0
 
+// The panel's colours; the dark one is chosen unless the system is in Light mode.
+typedef struct {
+    uint32_t tint;
+    CGFloat tint_a;
+    CGFloat edge_gray, edge_top, edge_bottom; // the border's colour and its alpha at the top and the flat rim
+    uint32_t header, title, highlight;
+    CGFloat highlight_a;
+} palette_t;
+static const palette_t DARK = {0x141416, 0.85, 1, 0.35, 0.18, 0x9a9a9e, 0xffffff, 0xffffff, 0.10};
+static const palette_t LIGHT = {0xf6f6f8, 0.80, 0, 0.10, 0.16, 0x6e6e73, 0x1d1d1f, 0x000000, 0.08};
+
 enum { F_HEADER, F_ROW, NFONTS };
 static const struct { CGFloat size, weight; } font_specs[NFONTS] = {
     {12, 0.23}, {14, 0.23},
@@ -41,6 +52,7 @@ static dispatch_source_t timer;
 static sw_entry_t *ents;
 static int n, sel, top, rows;
 static bool hl_last;
+static const palette_t *pal;
 static CGSize size;
 static CGPoint origin;
 static double pos, from_pos, t0;
@@ -125,7 +137,8 @@ static void edge_rrect(CGContextRef c, CGRect r) {
     CGContextReplacePathWithStrokedPath(c);
     CGContextClip(c);
     CGColorSpaceRef cs = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-    CGFloat comps[8] = {1, 1, 1, 0.35, 1, 1, 1, 0.18};
+    CGFloat g0 = pal->edge_gray;
+    CGFloat comps[8] = {g0, g0, g0, pal->edge_top, g0, g0, g0, pal->edge_bottom};
     CGGradientRef g = CGGradientCreateWithColorComponents(cs, comps, NULL, 2);
     CGContextDrawLinearGradient(c, g, CGPointMake(0, r.origin.y), CGPointMake(0, r.origin.y + RADIUS * 1.5),
                                 kCGGradientDrawsAfterEndLocation);
@@ -143,7 +156,7 @@ static void draw_header(CGContextRef c) {
     char buf[32];
     snprintf(buf, sizeof buf, "Desktop %d", wm_current());
     CFStringRef s = CFStringCreateWithCString(NULL, buf, kCFStringEncodingUTF8);
-    put(c, fit(s, F_HEADER, 0x9a9a9e, size.width - 2 * (ROW_INSET + ROW_PAD), kCTLineTruncationEnd), ROW_INSET + ROW_PAD, 18);
+    put(c, fit(s, F_HEADER, pal->header, size.width - 2 * (ROW_INSET + ROW_PAD), kCTLineTruncationEnd), ROW_INSET + ROW_PAD, 18);
     CFRelease(s);
 }
 
@@ -158,7 +171,7 @@ static void draw_row(CGContextRef c, sw_entry_t *e, CGFloat y) {
     }
     CFStringRef main = e->title ? e->title : e->app;
     if (!main) return;
-    put(c, fit(main, F_ROW, 0xffffff, right - left, is_path(main) ? kCTLineTruncationStart : kCTLineTruncationEnd), left, cy);
+    put(c, fit(main, F_ROW, pal->title, right - left, is_path(main) ? kCTLineTruncationStart : kCTLineTruncationEnd), left, cy);
 }
 
 // All of the panel's looks live here. Below the first line the context is y-down.
@@ -170,7 +183,7 @@ static void draw(CGContextRef c) {
     CGContextScaleCTM(c, 1, -1);
     CGContextSetTextMatrix(c, CGAffineTransformMakeScale(1, -1));
 
-    fill_rrect(c, all, RADIUS, 0x141416, 0.85);
+    fill_rrect(c, all, RADIUS, pal->tint, pal->tint_a);
     edge_rrect(c, all);
 
     draw_header(c);
@@ -196,7 +209,7 @@ static void draw_highlight(CGContextRef c) {
     CGContextAddArcToPoint(c, 0, sz.height, 0, sz.height - br, br);
     CGContextAddArcToPoint(c, 0, 0, ROW_RADIUS, 0, ROW_RADIUS);
     CGContextClosePath(c);
-    color(c, 0xffffff, 0.10, false);
+    color(c, pal->highlight, pal->highlight_a, false);
     CGContextFillPath(c);
     CGContextRestoreGState(c);
 }
@@ -305,6 +318,7 @@ static void open_panel(int dir) {
         return;
     }
     cid = SLSMainConnectionID();
+    pal = appearance_dark() ? &DARK : &LIGHT;
     rows = n < MAX_ROWS ? n : MAX_ROWS;
     top = sel < rows ? 0 : sel - rows + 1;
     pos = from_pos = sel;
