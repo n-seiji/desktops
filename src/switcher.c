@@ -18,20 +18,18 @@
 
 #define PANEL_W 640.0
 #define RADIUS 26.0
-#define HEADER_H 64.0
-#define LABEL_H 26.0
+#define HEADER_H 34.0
 #define ROW_H 42.0
 #define ROW_GAP 2.0
 #define ROW_INSET 8.0
 #define ROW_PAD 14.0
 #define ICON 22.0
-#define FOOT_H 54.0
 #define MAX_ROWS 9
 #define SLIDE_MS 120.0
 
-enum { F_TITLE, F_COUNT, F_LABEL, F_ROW, F_APP, F_BTN, F_KEY, NFONTS };
+enum { F_HEADER, F_ROW, NFONTS };
 static const struct { CGFloat size, weight; } font_specs[NFONTS] = {
-    {20, 0.23}, {14, 0}, {12, 0.23}, {14, 0.23}, {13, 0}, {13, 0.23}, {11, 0},
+    {13, 0.23}, {14, 0.23},
 };
 
 static int cid;
@@ -95,10 +93,6 @@ static CTLineRef fit(CFStringRef s, int font, uint32_t rgb, CGFloat maxw, CTLine
     return line;
 }
 
-static CGFloat width(CTLineRef l) {
-    return CTLineGetTypographicBounds(l, NULL, NULL, NULL);
-}
-
 // Draws l with its x-height-ish middle on cy, then releases it. The context is y-down.
 static void put(CGContextRef c, CTLineRef l, CGFloat x, CGFloat cy) {
     CGFloat asc, desc;
@@ -130,46 +124,17 @@ static void edge_rrect(CGContextRef c, CGRect r, CGFloat radius, uint32_t rgb, C
     CGPathRelease(p);
 }
 
-static CGFloat keycap(CGContextRef c, CFStringRef s, CGFloat x, CGFloat cy, bool dry) {
-    CTLineRef l = fit(s, F_KEY, 0xc7c7cc, 1e4, kCTLineTruncationEnd);
-    CGFloat w = width(l) + 14;
-    if (dry) {
-        CFRelease(l);
-        return w;
-    }
-    edge_rrect(c, (CGRect){{x, cy - 9}, {w, 18}}, 6, 0xffffff, 0.22);
-    put(c, l, x + 7, cy);
-    return w;
-}
-
 static bool is_path(CFStringRef s) {
     return CFStringHasPrefix(s, CFSTR("~/")) || CFStringHasPrefix(s, CFSTR("/"));
 }
 
 static void draw_header(CGContextRef c) {
-    CGContextSetLineWidth(c, 1.6);
-    color(c, 0xa1a1a6, 1, true);
-    CGPathRef mon = rrect(22 + 2.5, 22 + 3.5, 15, 11, 2.5);
-    CGContextAddPath(c, mon);
-    CGContextMoveToPoint(c, 22 + 7, 22 + 17.5);
-    CGContextAddLineToPoint(c, 22 + 13, 22 + 17.5);
-    CGContextStrokePath(c);
-    CGPathRelease(mon);
-
     char buf[32];
     snprintf(buf, sizeof buf, "Desktop %d", wm_current());
     CFStringRef s = CFStringCreateWithCString(NULL, buf, kCFStringEncodingUTF8);
-    put(c, fit(s, F_TITLE, 0xf5f5f7, 400, kCTLineTruncationEnd), 56, HEADER_H / 2);
+    put(c, fit(s, F_HEADER, 0x8e8e93, size.width - 2 * (ROW_INSET + ROW_PAD), kCTLineTruncationEnd), ROW_INSET + ROW_PAD,
+        HEADER_H / 2);
     CFRelease(s);
-
-    snprintf(buf, sizeof buf, "%d window%s", n, n == 1 ? "" : "s");
-    s = CFStringCreateWithCString(NULL, buf, kCFStringEncodingUTF8);
-    CTLineRef l = fit(s, F_COUNT, 0x8e8e93, 200, kCTLineTruncationEnd);
-    put(c, l, size.width - 20 - width(l), HEADER_H / 2);
-    CFRelease(s);
-
-    s = CFSTR("Windows");
-    put(c, fit(s, F_LABEL, 0x8e8e93, 200, kCTLineTruncationEnd), ROW_INSET + ROW_PAD, HEADER_H + 13);
 }
 
 static void draw_row(CGContextRef c, sw_entry_t *e, CGFloat y) {
@@ -184,39 +149,6 @@ static void draw_row(CGContextRef c, sw_entry_t *e, CGFloat y) {
     CFStringRef main = e->title ? e->title : e->app;
     if (!main) return;
     put(c, fit(main, F_ROW, 0xf5f5f7, right - left, is_path(main) ? kCTLineTruncationStart : kCTLineTruncationEnd), left, cy);
-}
-
-static void draw_footer(CGContextRef c) {
-    CGFloat cy = size.height - 10 - 17;
-    fill_rrect(c, (CGRect){{10, cy - 17}, {34, 34}}, 17, 0xffffff, 0.04);
-    edge_rrect(c, (CGRect){{10, cy - 17}, {34, 34}}, 17, 0xffffff, 0.14);
-    color(c, 0xa1a1a6, 1, true);
-    CGContextSetLineWidth(c, 1.5);
-    CGContextSetLineCap(c, kCGLineCapRound);
-    CGContextMoveToPoint(c, 27 - 5, cy - 2);
-    CGContextAddLineToPoint(c, 27 + 5, cy - 2);
-    CGContextMoveToPoint(c, 27 - 5, cy + 2);
-    CGContextAddLineToPoint(c, 27 + 1, cy + 2);
-    CGContextStrokePath(c);
-    CGContextSetLineCap(c, kCGLineCapButt);
-
-    CFStringRef k1 = CFSTR("\u2325 \u3092\u96e2\u3059"), k2 = CFSTR("esc");
-    CTLineRef a = fit(CFSTR("\u5207\u308a\u66ff\u3048"), F_BTN, 0xf5f5f7, 200, kCTLineTruncationEnd);
-    CTLineRef b = fit(CFSTR("\u30ad\u30e3\u30f3\u30bb\u30eb"), F_APP, 0xa1a1a6, 200, kCTLineTruncationEnd);
-    CGFloat w1 = keycap(c, k1, 0, 0, true), w2 = keycap(c, k2, 0, 0, true);
-    CGFloat pw = 14 + width(a) + 8 + w1 + 22 + width(b) + 8 + w2 + 6;
-    CGFloat x = size.width - 10 - pw;
-    fill_rrect(c, (CGRect){{x, cy - 17}, {pw, 34}}, 17, 0xffffff, 0.05);
-    edge_rrect(c, (CGRect){{x, cy - 17}, {pw, 34}}, 17, 0xffffff, 0.12);
-    x += 14;
-    CGFloat wa = width(a);
-    put(c, a, x, cy);
-    x += wa + 8;
-    x += keycap(c, k1, x, cy, false) + 22;
-    CGFloat wb = width(b);
-    put(c, b, x, cy);
-    x += wb + 8;
-    keycap(c, k2, x, cy, false);
 }
 
 // All of the panel's looks live here. Below the first line the context is y-down.
@@ -253,8 +185,7 @@ static void draw(CGContextRef c) {
     edge_rrect(c, all, RADIUS, 0xffffff, 0.16);
 
     draw_header(c);
-    for (int r = 0; r < rows; r++) draw_row(c, &ents[top + r], HEADER_H + LABEL_H + r * (ROW_H + ROW_GAP));
-    draw_footer(c);
+    for (int r = 0; r < rows; r++) draw_row(c, &ents[top + r], HEADER_H + r * (ROW_H + ROW_GAP));
     CGContextRestoreGState(c);
 }
 
@@ -269,7 +200,7 @@ static void draw_highlight(CGContextRef c) {
 
 static CGPoint hl_origin(void) {
     double hy = fmin(fmax(pos - top, 0), rows - 1);
-    return CGPointMake(origin.x + ROW_INSET, origin.y + HEADER_H + LABEL_H + hy * (ROW_H + ROW_GAP));
+    return CGPointMake(origin.x + ROW_INSET, origin.y + HEADER_H + hy * (ROW_H + ROW_GAP));
 }
 
 static void stop_timer(void) {
@@ -350,7 +281,7 @@ static void open_panel(int dir) {
     rows = n < MAX_ROWS ? n : MAX_ROWS;
     top = sel < rows ? 0 : sel - rows + 1;
     pos = from_pos = sel;
-    size = CGSizeMake(PANEL_W, HEADER_H + LABEL_H + rows * (ROW_H + ROW_GAP) + FOOT_H);
+    size = CGSizeMake(PANEL_W, HEADER_H + rows * ROW_H + (rows - 1) * ROW_GAP + ROW_INSET);
     CGRect d = CGDisplayBounds(CGMainDisplayID());
     origin = CGPointMake(d.origin.x + (d.size.width - size.width) / 2, d.origin.y + (d.size.height - size.height) / 2);
     wid = make_window(origin, size, &ctx);
