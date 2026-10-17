@@ -93,6 +93,10 @@ Pushing a `v*` tag makes GitHub Actions publish arm64 and x86_64 binaries to Rel
 - After a crash, parked windows stay in the bottom-right corner until the next launch, which moves them back on screen.
 - ⌥Tab, ⌥⇧Tab and the ⌥ / ⌥⇧ modifiers are fixed; only the desktop keys are configurable.
 
+## License
+
+[GPL-3.0](LICENSE).
+
 ## Support
 
 If just-desktops saves you a few keystrokes a day, you can [buy me a coffee](https://buymeacoffee.com/sijis).
