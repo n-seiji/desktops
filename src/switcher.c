@@ -18,7 +18,7 @@
 
 #define PANEL_W 640.0
 #define RADIUS 26.0
-#define HEADER_H 34.0
+#define HEADER_H 28.0
 #define ROW_H 42.0
 #define ROW_GAP 2.0
 #define ROW_INSET 8.0
@@ -29,7 +29,7 @@
 
 enum { F_HEADER, F_ROW, NFONTS };
 static const struct { CGFloat size, weight; } font_specs[NFONTS] = {
-    {13, 0.23}, {14, 0.23},
+    {11, 0.23}, {14, 0.23},
 };
 
 static int cid;
