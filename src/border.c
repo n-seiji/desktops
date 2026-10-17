@@ -26,6 +26,9 @@ static const palette_t DARK = {1, 0.9, 0.6}, LIGHT = {0, 0.75, 0.55};
 
 enum { TOP, BOTTOM, LEFT, RIGHT, NEDGES };
 
+// WindowServer event numbers (the same ones JankyBorders and yabai register for).
+enum { EVENT_WINDOW_MOVE = 806, EVENT_WINDOW_RESIZE = 807 };
+
 static struct {
     uint32_t wid;
     CGContextRef ctx;
@@ -53,6 +56,8 @@ static CGRect edge_rect(int e, CGRect o) {
 }
 
 static void appearance_changed(CFNotificationCenterRef, void *, CFNotificationName, const void *, CFDictionaryRef);
+static void window_changed(uint32_t event, uint32_t *wid, size_t len, void *ctx);
+static void drain_events(CFMachPortRef port, void *msg, CFIndex size, void *info);
 
 void border_init(void) {
     cid = SLSMainConnectionID();
@@ -60,6 +65,18 @@ void border_init(void) {
     CFNotificationCenterAddObserver(CFNotificationCenterGetDistributedCenter(), NULL, appearance_changed,
                                     CFSTR("AppleInterfaceThemeChangedNotification"), NULL,
                                     CFNotificationSuspensionBehaviorDeliverImmediately);
+    SLSRegisterNotifyProc(window_changed, EVENT_WINDOW_MOVE, NULL);
+    SLSRegisterNotifyProc(window_changed, EVENT_WINDOW_RESIZE, NULL);
+    // The notify procs run while the connection's event queue is drained.
+    mach_port_t port;
+    if (SLSGetEventPort(cid, &port) == kCGErrorSuccess) {
+        CFMachPortRef cf_port = CFMachPortCreateWithPort(NULL, port, drain_events, NULL, false);
+        _CFMachPortSetOptions(cf_port, 0x40);
+        CFRunLoopSourceRef src = CFMachPortCreateRunLoopSource(NULL, cf_port, 0);
+        CFRunLoopAddSource(CFRunLoopGetMain(), src, kCFRunLoopDefaultMode);
+        CFRelease(src);
+        CFRelease(cf_port);
+    }
     for (int e = 0; e < NEDGES; e++) {
         CGRect r = {{0, 0}, {1, 1}};
         CFTypeRef region = NULL;
@@ -163,6 +180,7 @@ void border_show(CGRect frame, uint32_t target_wid) {
         for (int e = 0; e < NEDGES; e++) draw_edge(e, outer);
     }
     if (!same) {
+        SLSRequestNotificationsForWindows(cid, &target_wid, 1); // move / resize events for this window only
         int level = 0;
         SLSGetWindowLevel(cid, target_wid, &level);
         for (int e = 0; e < NEDGES; e++) {
@@ -180,4 +198,18 @@ void border_hide(void) {
     if (!shown) return;
     for (int e = 0; e < NEDGES; e++) SLSOrderWindow(cid, edges[e].wid, 0, 0); // 0 = out
     shown = false;
+}
+
+static void drain_events(CFMachPortRef port __unused, void *msg __unused, CFIndex size __unused, void *info __unused) {
+    CGEventRef ev;
+    while ((ev = SLEventCreateNextEvent(cid))) CFRelease(ev);
+}
+
+// WindowServer reports the followed window's moves and resizes as they happen, ahead of
+// the Accessibility notifications, which arrive late and coalesced.
+static void window_changed(uint32_t event __unused, uint32_t *wid, size_t len, void *ctx __unused) {
+    if (!shown || len < sizeof *wid || *wid != last_target) return;
+    CGRect frame;
+    if (SLSGetWindowBounds(cid, *wid, &frame) != kCGErrorSuccess) return;
+    border_show(frame, *wid);
 }

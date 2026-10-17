@@ -167,10 +167,6 @@ static win_t *track(app_t *a, AXUIElementRef el) {
 
     void *ctx = (void *)(intptr_t)a->pid;
     AXObserverAddNotification(a->obs, el, kAXUIElementDestroyedNotification, ctx);
-    if (border_on) {
-        AXObserverAddNotification(a->obs, el, kAXMovedNotification, ctx);
-        AXObserverAddNotification(a->obs, el, kAXResizedNotification, ctx);
-    }
     AXObserverAddNotification(a->obs, el, kAXWindowMiniaturizedNotification, ctx);
     AXObserverAddNotification(a->obs, el, kAXWindowDeminiaturizedNotification, ctx);
 
