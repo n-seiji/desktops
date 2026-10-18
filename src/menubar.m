@@ -1,21 +1,16 @@
 #import <AppKit/AppKit.h>
 #import <CoreText/CoreText.h>
 #include "menubar.h"
-#include "app.h"
-#include "apps.h"
-#include "config.h"
-#include "glyph.h"
-#include "select.h"
+#include "menubar_priv.h"
 #include "strip.h"
 #include "wm.h"
 #include <string.h>
-#include <unistd.h>
 
 // Optional menu bar item: one line-art glyph per window on the current desktop (an app's
 // windows side by side), then the desktop's key in an outlined box at the right end. The
 // item grows and shrinks to the left, so the key stays where it is. The focused window's
 // glyph is cut out of a filled tile. Past JD_MENUBAR_SLOTS windows the last slot reads "+k"; a click
-// on it opens a popover listing the windows that have no glyph.
+// on it opens a panel (menubar_overflow.m) listing the windows that have no glyph.
 // The image is a template, so macOS tints it for light and dark menu bars.
 
 enum {
@@ -24,15 +19,8 @@ enum {
     PAD = 1,         // tile edge to glyph
 };
 
-typedef struct {
-    pid_t pid;
-    CGImageRef mask; // NULL when the app has no icon
-} glyph_t;
-
 static NSStatusItem *item;
 static menubar_mode_t mode;
-static glyph_t *glyphs;
-static int nglyphs;
 
 static int last_ws;
 static int last_n = -1;
@@ -42,206 +30,25 @@ static pid_t last_pids[JD_MENUBAR_SLOTS];
 static uint32_t last_wids[JD_MENUBAR_SLOTS];
 static uint32_t last_front;
 
-// The "+k" panel: one row per hidden window (icon, title) under a small arrow that points at
-// the slot. Drawn by hand in a single view, so a row costs no subview. Created on click and
-// released on close. (NSPopover is not used: on macOS 26 each one keeps a 5MB "RenderBox"
-// surface alive after it closes.)
-enum { ROW_H = 28, ROW_PAD = 6, ROW_ICON = 18, ROW_W = 280, MAX_ROWS = 14, ARROW = 7, CORNER = 10 };
-
-static void overflow_close(void);
-static double overflow_closed_at; // a click on the item closes the panel on mouse down, before the action runs
-
-@interface JDRows : NSView {
-    @public
-    sw_entry_t *rows;
-    int n, sel, top;
-    CGFloat arrow_x; // where the arrow points, in view coordinates
-}
-@end
-
-@implementation JDRows
-- (instancetype)initWithRows:(sw_entry_t *)r count:(int)count {
-    int vis = count < MAX_ROWS ? count : MAX_ROWS;
-    if (!(self = [super initWithFrame:NSMakeRect(0, 0, ROW_W, vis * ROW_H + 2 * ROW_PAD + ARROW)])) return nil;
-    rows = r;
-    n = count;
-    return self;
-}
-- (void)dealloc {
-    for (int i = 0; i < n; i++) {
-        if (rows[i].icon) CGImageRelease(rows[i].icon);
-        if (rows[i].app) CFRelease(rows[i].app);
-        if (rows[i].title) CFRelease(rows[i].title);
-    }
-    free(rows);
-}
-- (BOOL)isFlipped { return YES; }
-- (BOOL)acceptsFirstResponder { return YES; }
-- (BOOL)acceptsFirstMouse:(NSEvent *)e { (void)e; return YES; }
-- (int)visible { return n < MAX_ROWS ? n : MAX_ROWS; }
-- (void)select:(int)i {
-    sel = sel_wrap(i, n);
-    top = sel_top(top, sel, [self visible]);
-    [self setNeedsDisplay:YES];
-}
-- (void)choose:(int)i {
-    uint32_t wid = rows[i].wid;
-    overflow_close();
-    wm_focus_wid(wid);
-}
-- (void)drawRect:(NSRect)dirty {
-    (void)dirty;
-    NSRect body = NSMakeRect(0.5, ARROW + 0.5, ROW_W - 1, self.bounds.size.height - ARROW - 1);
-    NSBezierPath *bubble = [NSBezierPath bezierPathWithRoundedRect:body xRadius:CORNER yRadius:CORNER];
-    CGFloat ax = MAX(CORNER + ARROW, MIN(ROW_W - CORNER - ARROW, arrow_x));
-    [bubble moveToPoint:NSMakePoint(ax - ARROW, ARROW + 0.5)];
-    [bubble lineToPoint:NSMakePoint(ax, 0.5)];
-    [bubble lineToPoint:NSMakePoint(ax + ARROW, ARROW + 0.5)];
-    [bubble closePath];
-    [NSColor.windowBackgroundColor setFill];
-    [bubble fill];
-    [NSColor.separatorColor setStroke];
-    [bubble stroke];
-
-    NSMutableParagraphStyle *ps = [NSMutableParagraphStyle new];
-    ps.lineBreakMode = NSLineBreakByTruncatingTail;
-    for (int k = 0; k < [self visible]; k++) {
-        int i = top + k;
-        NSRect r = NSMakeRect(ROW_PAD, ARROW + ROW_PAD + k * ROW_H, ROW_W - 2 * ROW_PAD, ROW_H);
-        if (i == sel) {
-            [NSColor.selectedContentBackgroundColor setFill];
-            [[NSBezierPath bezierPathWithRoundedRect:r xRadius:5 yRadius:5] fill];
-        }
-        CGFloat x = r.origin.x + 6;
-        if (rows[i].icon) {
-            NSRect ir = NSMakeRect(x, r.origin.y + (ROW_H - ROW_ICON) / 2, ROW_ICON, ROW_ICON);
-            NSImage *img = [[NSImage alloc] initWithCGImage:rows[i].icon size:NSMakeSize(ROW_ICON, ROW_ICON)];
-            [img drawInRect:ir];
-        }
-        NSString *t = rows[i].title ? (__bridge NSString *)rows[i].title : @"Window";
-        NSDictionary *at = @{
-            NSFontAttributeName : [NSFont systemFontOfSize:13],
-            NSForegroundColorAttributeName : i == sel ? NSColor.alternateSelectedControlTextColor : NSColor.labelColor,
-            NSParagraphStyleAttributeName : ps,
-        };
-        CGFloat tx = x + ROW_ICON + 8, th = [t sizeWithAttributes:at].height;
-        [t drawInRect:NSMakeRect(tx, r.origin.y + (ROW_H - th) / 2, r.origin.x + r.size.width - 6 - tx, th) withAttributes:at];
-    }
-}
-- (int)rowAt:(NSEvent *)e {
-    NSPoint p = [self convertPoint:e.locationInWindow fromView:nil];
-    return sel_row_at(p.y - ARROW - ROW_PAD, ROW_H, top, [self visible]);
-}
-- (void)mouseMoved:(NSEvent *)e {
-    int i = [self rowAt:e];
-    if (i >= 0 && i != sel) [self select:i];
-}
-- (void)mouseUp:(NSEvent *)e {
-    int i = [self rowAt:e];
-    if (i >= 0) [self choose:i];
-}
-- (void)scrollWheel:(NSEvent *)e {
-    int most = n - [self visible];
-    if (most <= 0 || e.scrollingDeltaY == 0) return;
-    top = sel_clamp(top + (e.scrollingDeltaY < 0 ? 1 : -1), 0, most);
-    [self setNeedsDisplay:YES];
-}
-- (void)updateTrackingAreas {
-    for (NSTrackingArea *a in self.trackingAreas) [self removeTrackingArea:a];
-    [self addTrackingArea:[[NSTrackingArea alloc] initWithRect:self.bounds
-                                                       options:NSTrackingMouseMoved | NSTrackingActiveAlways | NSTrackingInVisibleRect
-                                                         owner:self userInfo:nil]];
-    [super updateTrackingAreas];
-}
-- (void)keyDown:(NSEvent *)e {
-    BOOL shift = e.modifierFlags & NSEventModifierFlagShift;
-    switch (e.keyCode) {
-    case 125: [self select:sel + 1]; break;                  // down
-    case 126: [self select:sel - 1]; break;                  // up
-    case 48: [self select:sel + (shift ? -1 : 1)]; break;    // tab
-    case 36: case 76: [self choose:sel]; break;              // return, enter
-    case 53: overflow_close(); break;                    // esc
-    default: break;
-    }
-}
-@end
-
-@interface JDPanel : NSPanel <NSWindowDelegate>
-@end
-
-@implementation JDPanel
-- (BOOL)canBecomeKeyWindow { return YES; }
-- (void)windowDidResignKey:(NSNotification *)note {
-    (void)note;
-    overflow_close(); // a click elsewhere
-}
-@end
-
-static JDPanel *panel;
-
-static void overflow_close(void) {
-    if (!panel) return;
-    JDPanel *p = panel;
-    panel = nil;
-    overflow_closed_at = CFAbsoluteTimeGetCurrent();
-    p.delegate = nil;
-    [p orderOut:nil];
-    // The click that closes it may be running inside the view: drop the view on the next turn, not now.
-    dispatch_async(dispatch_get_main_queue(), ^{ p.contentView = nil; });
-}
-
-// slot: the "+k" slot in the button's coordinates.
-static void overflow_open(NSButton *b, NSRect slot) {
-    sw_entry_t *rows = NULL;
-    int n = wm_overflow(&rows);
-    if (n <= 0) return;
-    JDRows *view = [[JDRows alloc] initWithRows:rows count:n];
-    NSRect at = [b.window convertRectToScreen:[b convertRect:slot toView:nil]];
-    NSRect vis = b.window.screen.visibleFrame;
-    NSSize size = view.frame.size;
-    CGFloat x = MAX(NSMinX(vis) + 4, MIN(NSMaxX(vis) - size.width - 4, NSMidX(at) - size.width / 2));
-    view->arrow_x = NSMidX(at) - x;
-    panel = [[JDPanel alloc] initWithContentRect:NSMakeRect(x, NSMinY(at) - 2 - size.height, size.width, size.height)
-                                        styleMask:NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel
-                                          backing:NSBackingStoreBuffered
-                                            defer:NO];
-    panel.releasedWhenClosed = NO;
-    panel.opaque = NO;
-    panel.backgroundColor = NSColor.clearColor;
-    panel.hasShadow = YES;
-    panel.level = NSPopUpMenuWindowLevel;
-    panel.delegate = panel;
-    panel.contentView = view;
-    [panel makeKeyAndOrderFront:nil];
-    [panel makeFirstResponder:view];
-}
-
-static NSMenu *build_menu(void);
-
-@interface JDMenuTarget : NSObject
+@interface JDClickTarget : NSObject
 - (void)clicked:(id)sender;
-- (void)quit:(id)sender;
-- (void)set:(NSMenuItem *)sender;
-- (void)toggleLogin:(id)sender;
-- (void)openConfig:(id)sender;
-- (void)about:(id)sender;
 @end
 
-@implementation JDMenuTarget
+@implementation JDClickTarget
 - (void)clicked:(id)sender {
     NSButton *b = sender;
     NSEvent *e = NSApp.currentEvent;
     if (!e) return;
     if (mode == MB_ICON || e.type == NSEventTypeRightMouseUp || e.modifierFlags & NSEventModifierFlagControl) {
         // The status item places its own menu under itself; detached again at once so left clicks reach clicked: next time.
-        item.menu = build_menu();
+        item.menu = menubar_menu(mode);
         [b performClick:nil];
         item.menu = nil;
         return;
     }
     if (last_n <= 0) return;
-    if (panel) {
-        overflow_close();
+    if (menubar_overflow_is_open()) {
+        menubar_overflow_close();
         return;
     }
     strip_hit_t hit = strip_hit([b convertPoint:e.locationInWindow fromView:nil].x, b.bounds.size.width, last_n, last_over);
@@ -249,79 +56,15 @@ static NSMenu *build_menu(void);
         wm_focus_wid(last_wids[hit.slot]);
         return;
     }
-    if (CFAbsoluteTimeGetCurrent() - overflow_closed_at < 0.4) return;
+    if (menubar_overflow_just_closed()) return;
     if (hit.overflow) {
         CGFloat left = strip_overflow_left(b.bounds.size.width, last_n, last_over);
-        overflow_open(b, NSMakeRect(left, 0, STRIP_SLOT, b.bounds.size.height));
+        menubar_overflow_open(b, NSMakeRect(left, 0, STRIP_SLOT, b.bounds.size.height));
     }
-}
-- (void)quit:(id)sender {
-    (void)sender;
-    jd_quit();
-}
-// representedObject is @[key, value]: write that one line of the config file and restart.
-- (void)set:(NSMenuItem *)sender {
-    NSArray<NSString *> *kv = sender.representedObject;
-    app_set(kv[0].UTF8String, kv[1].UTF8String);
-}
-- (void)toggleLogin:(id)sender {
-    (void)sender;
-    app_toggle_login();
-}
-- (void)openConfig:(id)sender {
-    (void)sender;
-    app_open_config();
-}
-- (void)about:(id)sender {
-    (void)sender;
-    app_open_about();
 }
 @end
 
-static JDMenuTarget *target;
-
-static NSMenuItem *add_item(NSMenu *m, NSString *title, SEL action, NSControlStateValue state, NSString *key, NSString *value) {
-    NSMenuItem *it = [m addItemWithTitle:title action:action keyEquivalent:@""];
-    it.target = target;
-    it.state = state;
-    if (key) it.representedObject = @[ key, value ];
-    return it;
-}
-
-static NSMenuItem *add_choice(NSMenu *m, NSString *title, bool current, NSString *key, NSString *value) {
-    return add_item(m, title, @selector(set:), current ? NSControlStateValueOn : NSControlStateValueOff, key, value);
-}
-
-// Built on every open, so the checks match the settings in force and the login item's state.
-// The bare binary keeps its one-item menu; the rest is for the app.
-static NSMenu *build_menu(void) {
-    NSMenu *m = [NSMenu new];
-    if (jd_app_mode()) {
-        sw_style_t sw = config_switcher_style();
-        NSMenu *sws = [NSMenu new];
-        add_choice(sws, @"List", sw == SW_LIST, @"switcher", @"list");
-        add_choice(sws, @"Square", sw == SW_SQUARE, @"switcher", @"square");
-        add_choice(sws, @"Instant (off)", sw == SW_OFF, @"switcher", @"off");
-        [m setSubmenu:sws forItem:[m addItemWithTitle:@"Switcher" action:nil keyEquivalent:@""]];
-
-        add_choice(m, @"Focus border", config_border(), @"border", config_border() ? @"off" : @"on");
-
-        NSMenu *mbs = [NSMenu new];
-        add_choice(mbs, @"Windows strip", mode == MB_STRIP, @"menubar", @"on");
-        add_choice(mbs, @"Icon only", mode == MB_ICON, @"menubar", @"icon");
-        [m setSubmenu:mbs forItem:[m addItemWithTitle:@"Menu bar" action:nil keyEquivalent:@""]];
-
-        [m addItem:NSMenuItem.separatorItem];
-        int login = app_login_state();
-        add_item(m, @"Launch at Login", @selector(toggleLogin:),
-                 login == 1 ? NSControlStateValueOn : login == 2 ? NSControlStateValueMixed : NSControlStateValueOff, nil, nil);
-        add_item(m, @"Open Config File", @selector(openConfig:), NSControlStateValueOff, nil, nil);
-        [m addItem:NSMenuItem.separatorItem];
-        add_item(m, [NSString stringWithFormat:@"About just-desktops %s", JD_VERSION], @selector(about:), NSControlStateValueOff, nil, nil);
-    }
-    add_item(m, @"Quit just-desktops", @selector(quit:), NSControlStateValueOff, nil, nil);
-    return m;
-}
+static JDClickTarget *target;
 
 // The app glyph of icon mode, from the logo mark: a rounded outline with a filled rounded square inside.
 static NSImage *icon_image(void) {
@@ -338,82 +81,27 @@ static NSImage *icon_image(void) {
     return img;
 }
 
-// White glyph for an app icon: the tile behind the symbol disappears (see glyph_cut).
-static CGImageRef glyph_mask(CGImageRef icon) {
-    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
-    CGContextRef c = CGBitmapContextCreate(NULL, GLYPH_PX, GLYPH_PX, 8, GLYPH_PX * 4, cs,
-                                           (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
-    CGColorSpaceRelease(cs);
-    if (!c) return NULL;
-    CGContextDrawImage(c, CGRectMake(0, 0, GLYPH_PX, GLYPH_PX), icon);
-    glyph_cut(CGBitmapContextGetData(c));
-    CGImageRef m = CGBitmapContextCreateImage(c);
-    CGContextRelease(c);
-    return m;
+// text centred by its real outline bounds, not the line box, in the slot at x and snapped to the
+// pixel grid so it stays crisp at 1x and 2x.
+static void draw_centered(CGContextRef c, CGFloat x, CFStringRef text, CGFloat size) {
+    CTFontRef font = CTFontCreateUIFontForLanguage(kCTFontUIFontEmphasizedSystem, size, NULL);
+    CFTypeRef keys[] = {kCTFontAttributeName, kCTForegroundColorFromContextAttributeName};
+    CFTypeRef vals[] = {font, kCFBooleanTrue};
+    CFDictionaryRef attrs = CFDictionaryCreate(NULL, (const void **)keys, (const void **)vals, 2,
+                                               &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    CFAttributedStringRef str = CFAttributedStringCreate(NULL, text, attrs);
+    CTLineRef line = CTLineCreateWithAttributedString(str);
+    CGRect b = CTLineGetBoundsWithOptions(line, kCTLineBoundsUseGlyphPathBounds);
+    CGFloat px = x + STRIP_SLOT / 2.0 - CGRectGetMidX(b), py = HEIGHT / 2.0 - CGRectGetMidY(b);
+    CGContextSetTextPosition(c, round(px * SCALE) / SCALE, round(py * SCALE) / SCALE);
+    CTLineDraw(line, c);
+    CFRelease(line);
+    CFRelease(str);
+    CFRelease(attrs);
+    CFRelease(font);
 }
 
-// Line art for icons whose colours have no single background to cut away: the mask built
-// from the icon would be a blob, so these are drawn by hand into the same mask format.
-static void draw_chrome(CGContextRef c) {
-    CGFloat o = 14, ring = 7, disc = 5.2, mid = GLYPH_PX / 2.0;
-    CGContextSetGrayFillColor(c, 1, 1);
-    CGContextSetGrayStrokeColor(c, 1, 1);
-    CGContextAddEllipseInRect(c, CGRectMake(mid - o, mid - o, 2 * o, 2 * o));
-    CGContextAddEllipseInRect(c, CGRectMake(mid - ring, mid - ring, 2 * ring, 2 * ring));
-    CGContextEOFillPath(c);
-    CGContextFillEllipseInRect(c, CGRectMake(mid - disc, mid - disc, 2 * disc, 2 * disc));
-    CGContextSetBlendMode(c, kCGBlendModeClear);
-    CGContextSetLineWidth(c, 1.4);
-    for (int k = 0; k < 3; k++) {
-        CGFloat a = (30 + 120 * k) * M_PI / 180;
-        CGContextMoveToPoint(c, mid + (ring - 0.5) * cos(a), mid + (ring - 0.5) * sin(a));
-        CGContextAddLineToPoint(c, mid + (o + 1) * cos(a), mid + (o + 1) * sin(a));
-    }
-    CGContextStrokePath(c);
-}
-
-static const struct {
-    const char *bundle;
-    void (*draw)(CGContextRef);
-} art[] = {
-    {"com.google.Chrome", draw_chrome},
-};
-
-static CGImageRef drawn_mask(NSString *bundle) {
-    for (size_t i = 0; i < sizeof art / sizeof *art; i++) {
-        if (![bundle isEqualToString:@(art[i].bundle)]) continue;
-        CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
-        CGContextRef c = CGBitmapContextCreate(NULL, GLYPH_PX, GLYPH_PX, 8, GLYPH_PX * 4, cs,
-                                               (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
-        CGColorSpaceRelease(cs);
-        if (!c) return NULL;
-        art[i].draw(c);
-        CGImageRef m = CGBitmapContextCreateImage(c);
-        CGContextRelease(c);
-        return m;
-    }
-    return NULL;
-}
-
-static CGImageRef mask_for(pid_t pid) {
-    for (int i = 0; i < nglyphs; i++)
-        if (glyphs[i].pid == pid) return glyphs[i].mask;
-    glyph_t *n = realloc(glyphs, sizeof *glyphs * (nglyphs + 1));
-    if (!n) return NULL;
-    glyphs = n;
-    NSString *bundle = [NSRunningApplication runningApplicationWithProcessIdentifier:pid].bundleIdentifier;
-    CGImageRef mask = drawn_mask(bundle);
-    if (!mask) {
-        CGImageRef icon = apps_icon(pid, GLYPH_PX);
-        mask = icon ? glyph_mask(icon) : NULL;
-        if (icon) CGImageRelease(icon);
-    }
-    glyphs[nglyphs++] = (glyph_t){pid, mask};
-    return mask;
-}
-
-// The key box sits in the slot at x; the glyph is centred by its real outline bounds, not
-// the line box, and snapped to the pixel grid so it stays crisp at 1x and 2x.
+// The desktop's key in an outlined box.
 static void draw_key(CGContextRef c, CGFloat x, char key) {
     CGRect box = CGRectMake(x + 0.5, (HEIGHT - STRIP_SLOT) / 2.0 + 0.5, STRIP_SLOT - 1, STRIP_SLOT - 1);
     CGPathRef path = CGPathCreateWithRoundedRect(box, 4.5, 4.5, NULL);
@@ -422,45 +110,18 @@ static void draw_key(CGContextRef c, CGFloat x, char key) {
     CGContextStrokePath(c);
     CGPathRelease(path);
 
-    CTFontRef font = CTFontCreateUIFontForLanguage(kCTFontUIFontEmphasizedSystem, 13, NULL);
     CFStringRef text = CFStringCreateWithBytes(NULL, (const UInt8 *)&key, 1, kCFStringEncodingASCII, false);
-    CFTypeRef keys[] = {kCTFontAttributeName, kCTForegroundColorFromContextAttributeName};
-    CFTypeRef vals[] = {font, kCFBooleanTrue};
-    CFDictionaryRef attrs = CFDictionaryCreate(NULL, (const void **)keys, (const void **)vals, 2,
-                                               &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    CFAttributedStringRef str = CFAttributedStringCreate(NULL, text, attrs);
-    CTLineRef line = CTLineCreateWithAttributedString(str);
-    CGRect b = CTLineGetBoundsWithOptions(line, kCTLineBoundsUseGlyphPathBounds);
-    CGFloat px = x + STRIP_SLOT / 2.0 - CGRectGetMidX(b), py = HEIGHT / 2.0 - CGRectGetMidY(b);
-    CGContextSetTextPosition(c, round(px * SCALE) / SCALE, round(py * SCALE) / SCALE);
-    CTLineDraw(line, c);
-    CFRelease(line);
-    CFRelease(str);
-    CFRelease(attrs);
+    draw_centered(c, x, text, 13);
     CFRelease(text);
-    CFRelease(font);
 }
 
+// The "+k" count of the windows that have no glyph.
 static void draw_more(CGContextRef c, CGFloat x, int k) {
     char buf[8];
     snprintf(buf, sizeof buf, "+%d", k > 99 ? 99 : k);
-    CTFontRef font = CTFontCreateUIFontForLanguage(kCTFontUIFontEmphasizedSystem, 11, NULL);
     CFStringRef text = CFStringCreateWithCString(NULL, buf, kCFStringEncodingASCII);
-    CFTypeRef keys[] = {kCTFontAttributeName, kCTForegroundColorFromContextAttributeName};
-    CFTypeRef vals[] = {font, kCFBooleanTrue};
-    CFDictionaryRef attrs = CFDictionaryCreate(NULL, (const void **)keys, (const void **)vals, 2,
-                                               &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    CFAttributedStringRef str = CFAttributedStringCreate(NULL, text, attrs);
-    CTLineRef line = CTLineCreateWithAttributedString(str);
-    CGRect b = CTLineGetBoundsWithOptions(line, kCTLineBoundsUseGlyphPathBounds);
-    CGFloat px = x + STRIP_SLOT / 2.0 - CGRectGetMidX(b), py = HEIGHT / 2.0 - CGRectGetMidY(b);
-    CGContextSetTextPosition(c, round(px * SCALE) / SCALE, round(py * SCALE) / SCALE);
-    CTLineDraw(line, c);
-    CFRelease(line);
-    CFRelease(str);
-    CFRelease(attrs);
+    draw_centered(c, x, text, 11);
     CFRelease(text);
-    CFRelease(font);
 }
 
 static void draw_app(CGContextRef c, CGRect slot, CGImageRef mask, bool focused) {
@@ -491,7 +152,7 @@ static void render(int ws, const pid_t *pids, const uint32_t *wids, int n, int o
 
     for (int i = 0; i < n; i++) {
         CGRect slot = CGRectMake(i * (STRIP_SLOT + STRIP_GAP), (HEIGHT - STRIP_SLOT) / 2.0, STRIP_SLOT, STRIP_SLOT);
-        draw_app(c, slot, mask_for(pids[i]), wids[i] == front);
+        draw_app(c, slot, menubar_mask(pids[i]), wids[i] == front);
     }
     if (over > 0) draw_more(c, n * (STRIP_SLOT + STRIP_GAP), over);
     draw_key(c, slots * (STRIP_SLOT + STRIP_GAP), config_key_char(ws - 1));
@@ -509,7 +170,7 @@ void menubar_init(menubar_mode_t m) {
     mode = m;
     [NSApplication sharedApplication];
     [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
-    target = [JDMenuTarget new];
+    target = [JDClickTarget new];
     item = [NSStatusBar.systemStatusBar statusItemWithLength:NSVariableStatusItemLength];
     // No permanent menu: it would swallow left clicks on the strip. It opens on a right or control click, and on any click in icon mode.
     item.button.target = target;
@@ -526,7 +187,7 @@ void menubar_update(int ws, const pid_t *pids, const uint32_t *wids, int n, int 
     bool same_set = ws == last_ws && n == last_n && over == last_over && over_hash == last_hash &&
                     !memcmp(pids, last_pids, sizeof *pids * n) && !memcmp(wids, last_wids, sizeof *wids * n);
     if (same_set && front == last_front) return;
-    if (!same_set) overflow_close(); // the list it shows is stale
+    if (!same_set) menubar_overflow_close(); // the list it shows is stale
     last_hash = over_hash;
     last_ws = ws;
     last_n = n;
@@ -541,13 +202,4 @@ void menubar_update(int ws, const pid_t *pids, const uint32_t *wids, int n, int 
 
 bool menubar_ready(void) {
     return item != nil && mode == MB_STRIP;
-}
-
-void menubar_forget(pid_t pid) {
-    for (int i = 0; i < nglyphs; i++) {
-        if (glyphs[i].pid != pid) continue;
-        if (glyphs[i].mask) CGImageRelease(glyphs[i].mask);
-        glyphs[i] = glyphs[--nglyphs];
-        return;
-    }
 }
