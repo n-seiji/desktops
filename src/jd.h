@@ -61,7 +61,7 @@ void thumb_end(void);            // the switcher closed: drop everything held
 void menubar_init(void);
 // The current desktop ws, the n pids of the apps on it in switcher order, and the focused pid.
 // Redraws only when one of them changed.
-void menubar_update(int ws, const pid_t *pids, int n, pid_t front);
+void menubar_update(int ws, const pid_t *pids, const uint32_t *wids, int n, int over, uint32_t front);
 void menubar_forget(pid_t pid); // drop an app's cached glyph
 
 // title.c
@@ -85,7 +85,6 @@ int wm_current(void);
 int wm_windows(int dir, sw_entry_t **out, int *sel);
 int wm_window_ids(int dir, uint32_t **out, int *sel); // wm_windows without icons and text; caller frees *out
 void wm_focus_wid(uint32_t wid);
-void wm_focus_app(pid_t pid); // focus that app's window on this desktop (the menu bar item's click)
 void wm_restore_all(void);
 
 // apps.m

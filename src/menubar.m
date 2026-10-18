@@ -5,13 +5,15 @@
 #include <unistd.h>
 #include "jd.h"
 
-// Optional menu bar item: one line-art glyph per app on the current desktop, then the
-// desktop's key in an outlined box at the right end. The item grows and shrinks to the
-// left, so the key stays where it is. The focused app's glyph is cut out of a filled tile.
+// Optional menu bar item: one line-art glyph per window on the current desktop (an app's
+// windows side by side), then the desktop's key in an outlined box at the right end. The
+// item grows and shrinks to the left, so the key stays where it is. The focused window's
+// glyph is cut out of a filled tile. Past MAX_SLOTS windows the last slot reads "+k".
 // The image is a template, so macOS tints it for light and dark menu bars.
 
 enum {
-    MAX_APPS = 64,
+    MAX_WINS = 64,
+    MAX_SLOTS = 10,  // glyph slots; more windows than that turn the last slot into "+k"
     SCALE = 2,       // pixels per point
     HEIGHT = 22,     // points, the status item's thickness
     SLOT = 20,       // key box and glyph tile size
@@ -35,11 +37,13 @@ static int nglyphs;
 
 static int last_ws;
 static int last_n = -1;
-static pid_t last_pids[MAX_APPS];
-static pid_t last_front;
+static int last_over;
+static pid_t last_pids[MAX_WINS];
+static uint32_t last_wids[MAX_WINS];
+static uint32_t last_front;
 
-// Index of the app slot under x (points from the left edge of the strip), or -1 for a gap,
-// the key box or outside.
+// Index of the window slot under x (points from the left edge of the strip), or -1 for a gap,
+// the overflow slot, the key box or outside.
 static int slot_at(CGFloat x, int n) {
     if (x < 0) return -1;
     int i = (int)(x / (SLOT + GAP));
@@ -61,10 +65,11 @@ static int slot_at(CGFloat x, int n) {
         return;
     }
     if (last_n <= 0) return;
-    CGFloat strip = (last_n + 1) * SLOT + last_n * GAP;
+    int slots = last_n + (last_over > 0);
+    CGFloat strip = (slots + 1) * SLOT + slots * GAP;
     CGFloat x = [b convertPoint:e.locationInWindow fromView:nil].x - (b.bounds.size.width - strip) / 2;
     int i = slot_at(x, last_n);
-    if (i >= 0) wm_focus_app(last_pids[i]);
+    if (i >= 0) wm_focus_wid(last_wids[i]);
 }
 - (void)quit:(id)sender {
     (void)sender;
@@ -226,6 +231,28 @@ static void draw_key(CGContextRef c, CGFloat x, char key) {
     CFRelease(font);
 }
 
+static void draw_more(CGContextRef c, CGFloat x, int k) {
+    char buf[8];
+    snprintf(buf, sizeof buf, "+%d", k > 99 ? 99 : k);
+    CTFontRef font = CTFontCreateUIFontForLanguage(kCTFontUIFontEmphasizedSystem, 11, NULL);
+    CFStringRef text = CFStringCreateWithCString(NULL, buf, kCFStringEncodingASCII);
+    CFTypeRef keys[] = {kCTFontAttributeName, kCTForegroundColorFromContextAttributeName};
+    CFTypeRef vals[] = {font, kCFBooleanTrue};
+    CFDictionaryRef attrs = CFDictionaryCreate(NULL, (const void **)keys, (const void **)vals, 2,
+                                               &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    CFAttributedStringRef str = CFAttributedStringCreate(NULL, text, attrs);
+    CTLineRef line = CTLineCreateWithAttributedString(str);
+    CGRect b = CTLineGetBoundsWithOptions(line, kCTLineBoundsUseGlyphPathBounds);
+    CGFloat px = x + SLOT / 2.0 - CGRectGetMidX(b), py = HEIGHT / 2.0 - CGRectGetMidY(b);
+    CGContextSetTextPosition(c, round(px * SCALE) / SCALE, round(py * SCALE) / SCALE);
+    CTLineDraw(line, c);
+    CFRelease(line);
+    CFRelease(str);
+    CFRelease(attrs);
+    CFRelease(text);
+    CFRelease(font);
+}
+
 static void draw_app(CGContextRef c, CGRect slot, CGImageRef mask, bool focused) {
     CGRect art = CGRectInset(slot, PAD, PAD);
     if (focused) {
@@ -239,8 +266,9 @@ static void draw_app(CGContextRef c, CGRect slot, CGImageRef mask, bool focused)
     CGContextSetBlendMode(c, kCGBlendModeNormal);
 }
 
-static void render(int ws, const pid_t *pids, int n, pid_t front) {
-    int width = (n + 1) * SLOT + n * GAP;
+static void render(int ws, const pid_t *pids, const uint32_t *wids, int n, int over, uint32_t front) {
+    int slots = n + (over > 0);
+    int width = (slots + 1) * SLOT + slots * GAP;
     CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
     CGContextRef c = CGBitmapContextCreate(NULL, width * SCALE, HEIGHT * SCALE, 8, 0, cs,
                                            (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
@@ -253,9 +281,10 @@ static void render(int ws, const pid_t *pids, int n, pid_t front) {
 
     for (int i = 0; i < n; i++) {
         CGRect slot = CGRectMake(i * (SLOT + GAP), (HEIGHT - SLOT) / 2.0, SLOT, SLOT);
-        draw_app(c, slot, mask_for(pids[i]), pids[i] == front);
+        draw_app(c, slot, mask_for(pids[i]), wids[i] == front);
     }
-    draw_key(c, n * (SLOT + GAP), config_key_char(ws - 1));
+    if (over > 0) draw_more(c, n * (SLOT + GAP), over);
+    draw_key(c, slots * (SLOT + GAP), config_key_char(ws - 1));
 
     CGImageRef strip = CGBitmapContextCreateImage(c);
     CGContextRelease(c);
@@ -280,15 +309,22 @@ void menubar_init(void) {
     [item.button sendActionOn:NSEventMaskLeftMouseUp | NSEventMaskRightMouseUp];
 }
 
-void menubar_update(int ws, const pid_t *pids, int n, pid_t front) {
+// n windows get a glyph (pids[i] owns wids[i]); over more are only counted. front is the
+// focused window's id, 0 for none.
+void menubar_update(int ws, const pid_t *pids, const uint32_t *wids, int n, int over, uint32_t front) {
     if (!item) return;
-    if (ws == last_ws && n == last_n && front == last_front && !memcmp(pids, last_pids, sizeof *pids * n)) return;
+    if (n > MAX_WINS) n = MAX_WINS;
+    if (ws == last_ws && n == last_n && over == last_over && front == last_front &&
+        !memcmp(pids, last_pids, sizeof *pids * n) && !memcmp(wids, last_wids, sizeof *wids * n))
+        return;
     last_ws = ws;
     last_n = n;
+    last_over = over;
     last_front = front;
     memcpy(last_pids, pids, sizeof *pids * n);
+    memcpy(last_wids, wids, sizeof *wids * n);
     @autoreleasepool {
-        render(ws, pids, n, front);
+        render(ws, pids, wids, n, over, front);
     }
 }
 

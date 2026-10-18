@@ -36,8 +36,8 @@ static int cur = 1;
 static uint32_t last_focus[JD_MAX_WS + 1];
 static bool border_on = true;
 static uint32_t stale; // parked window macOS still reports as focused
-static double fresh_until; // until then, the menu bar prefers the app we just focused...
-static pid_t fresh_front;  // ...to NSWorkspace's frontmost app, which lags behind
+static double fresh_until; // until then, the menu bar prefers the window we just focused...
+static uint32_t fresh_wid; // ...to the one macOS reports as focused, which lags behind
 static double settle_until; // until then, parked windows macOS activates on its own are not pulled
 static AXUIElementRef sys;
 
@@ -350,7 +350,7 @@ void wm_switch(int ws) {
     double now = CFAbsoluteTimeGetCurrent();
     settle_until = now + SETTLE_S;
     fresh_until = now + FRESH_S;
-    fresh_front = t ? t->pid : 0;
+    fresh_wid = t ? t->wid : 0;
     refresh_border();
     refresh_menubar();
     // WindowServer may not list the windows just shown as on screen yet: check again once it does.
@@ -496,26 +496,47 @@ int wm_window_ids(int dir, uint32_t **out, int *sel) {
     return n;
 }
 
-// Hands the menu bar item the apps that have a switchable window on this desktop.
+// Hands the menu bar item the switchable windows of this desktop: grouped by app in order of
+// each app's first window, an app's windows in tracking order, so focus changes never reorder.
+// At most MENUBAR_SLOTS get a glyph; with more, the last slot is the count of the rest.
+#define MENUBAR_SLOTS 10
+
 static void refresh_menubar(void) {
     if (!config_menubar()) return;
-    pid_t pids[64];
-    int n = 0;
+    win_t *f = focused(); // may track a window: before anything points into wins
     double now = CFAbsoluteTimeGetCurrent();
+    uint32_t front = now < fresh_until && fresh_wid ? fresh_wid : f ? f->wid : 0;
+    pid_t pids[64], vpid[64];
+    uint32_t wids[64], vwid[64];
+    int n = 0, nv = 0;
     CFArrayRef shown = shown_windows();
-    for (int i = 0; i < nwins && n < 64; i++) {
+    for (int i = 0; i < nwins && nv < 64; i++) {
         win_t *w = &wins[i];
         if (w->ws != cur || w->hidden || get_bool(w->el, kAXMinimizedAttribute)) continue;
         bool listed = is_shown(shown, w->wid);
         if (now - w->shown_at > FRESH_S) w->was_listed = listed;
         else listed = listed || w->was_listed;
         if (!listed) continue;
-        bool seen = false;
-        for (int j = 0; j < n && !seen; j++) seen = pids[j] == w->pid;
-        if (!seen) pids[n++] = w->pid;
+        vpid[nv] = w->pid;
+        vwid[nv++] = w->wid;
     }
     if (shown) CFRelease(shown);
-    menubar_update(cur, pids, n, now < fresh_until && fresh_front ? fresh_front : apps_frontmost());
+    for (int i = 0; i < nv; i++) {
+        bool seen = false;
+        for (int j = 0; j < i && !seen; j++) seen = vpid[j] == vpid[i];
+        if (seen) continue;
+        for (int j = i; j < nv; j++) {
+            if (vpid[j] != vpid[i]) continue;
+            pids[n] = vpid[j];
+            wids[n++] = vwid[j];
+        }
+    }
+    int shown_n = n, over = 0;
+    if (n > MENUBAR_SLOTS) {
+        shown_n = MENUBAR_SLOTS - 1;
+        over = n - shown_n;
+    }
+    menubar_update(cur, pids, wids, shown_n, over, front);
 }
 
 void wm_focus_wid(uint32_t wid) {
@@ -524,31 +545,11 @@ void wm_focus_wid(uint32_t wid) {
     last_focus[cur] = wid;
     focus(w);
     refresh_border();
-}
-
-// Focuses an app's window on this desktop: the one the app itself calls main, else the first shown one.
-void wm_focus_app(pid_t pid) {
-    app_t *a = find_app(pid);
-    if (!a) return;
-    win_t *pick = NULL, *main_w = NULL;
-    CFTypeRef v = NULL;
-    if (AXUIElementCopyAttributeValue(a->el, kAXMainWindowAttribute, &v) == kAXErrorSuccess && v) {
-        uint32_t wid = 0;
-        if (_AXUIElementGetWindow(v, &wid) == kAXErrorSuccess) main_w = find_wid(wid);
-        CFRelease(v);
-    }
-    CFArrayRef shown = shown_windows();
-    for (int i = 0; i < nwins; i++) {
-        win_t *w = &wins[i];
-        if (w->pid != pid || !switchable(w, shown)) continue;
-        if (w == main_w) {
-            pick = w;
-            break;
-        }
-        if (!pick) pick = w;
-    }
-    if (shown) CFRelease(shown);
-    if (pick) wm_focus_wid(pick->wid);
+    if (!config_menubar()) return;
+    fresh_until = CFAbsoluteTimeGetCurrent() + FRESH_S;
+    fresh_wid = wid;
+    refresh_menubar();
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (FRESH_S + 0.05) * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ refresh_menubar(); });
 }
 
 void wm_restore_all(void) {
