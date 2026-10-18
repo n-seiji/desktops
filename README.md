@@ -1,11 +1,9 @@
-<p align="center">
+<h1>
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
-    <img src="assets/logo-light.svg" width="128" height="128" alt="just-desktops">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/wordmark-dark.svg">
+    <img src="assets/wordmark-light.svg" width="280" alt="just-desktops">
   </picture>
-</p>
-
-# just-desktops
+</h1>
 
 A tiny macOS-only daemon that does two things: switch between workspaces, and draw a ring around the focused window. Nothing else.
 
