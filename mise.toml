@@ -26,7 +26,7 @@ depends = ["build"]
 run = "./bin/just-desktops"
 
 [tasks.dist]
-description = "Build release tarballs for arm64 and x86_64"
+description = "Build release tarballs for arm64 and x86_64 (CODESIGN_IDENTITY signs with a real identity, default ad-hoc)"
 run = '''
 set -eu
 mkdir -p dist
@@ -34,7 +34,11 @@ for arch in arm64 x86_64; do
   out="dist/$arch/just-desktops"
   mkdir -p "dist/$arch"
   clang $CFLAGS -arch "$arch" src/*.m src/*.c -o "$out" $FRAMEWORKS
-  codesign -fs - --options runtime "$out"
+  if [ "${CODESIGN_IDENTITY:--}" = "-" ]; then
+    codesign -fs - --options runtime "$out"
+  else
+    codesign -f -s "$CODESIGN_IDENTITY" --options runtime --timestamp "$out"
+  fi
   tar -czf "dist/just-desktops-darwin-$arch.tar.gz" -C "dist/$arch" just-desktops
 done
 '''
