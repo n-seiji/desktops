@@ -54,7 +54,7 @@ SkyLight is a private Apple API, so a macOS update can break the border, the sam
 ## Install
 
 ```sh
-mise use -g github:n-seiji/desktops
+mise use -g github:n-seiji/just-desktops
 just-desktops
 ```
 
