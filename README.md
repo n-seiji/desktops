@@ -27,7 +27,7 @@ Download `just-desktops-<version>.app.zip` from [Releases](https://github.com/n-
 Homebrew (`brew install --cask n-seiji/tap/just-desktops`) is coming soon, once the tap exists.
 
 1. Open the app. It has no Dock icon. Its item is always in the menu bar.
-2. The build is ad-hoc signed and not notarized. Right-click the app and choose Open. On macOS 15 and later, use System Settings > Privacy & Security > Open Anyway.
+2. The build is ad-hoc signed and not notarized, so Gatekeeper blocks the first launch. On macOS 15 and later, right-click > Open no longer bypasses it. Open System Settings > Privacy & Security and choose Open Anyway for this app only. Before you do, check the download: compare `shasum -a 256 just-desktops-<version>.app.zip` with the `.sha256` file on the release, or run `gh attestation verify just-desktops-<version>.app.zip --repo n-seiji/just-desktops`. Download only from the Releases page (or the Homebrew tap once it exists). Do not turn Gatekeeper off with `spctl --master-disable`, and do not strip quarantine from other apps with `xattr -cr`.
 3. The first run explains the Accessibility permission. Click Open System Settings and turn it on. The app starts as soon as you do.
 4. Screen Recording is asked for only when the switcher is `square`.
 
@@ -44,7 +44,7 @@ mise use -g github:n-seiji/just-desktops
 just-desktops
 ```
 
-macOS asks for Accessibility. Allow `just-desktops` (or your terminal, if you started it there). On exit, every parked window is moved back.
+macOS asks for Accessibility. Grant it to `just-desktops` itself, not to your terminal: a terminal with Accessibility lets every program started in it drive your apps. Run it through `mise run service` (below) so that only the binary holds the grant. On exit, every parked window is moved back.
 
 To start at login, run this inside the repository:
 
@@ -54,6 +54,8 @@ mise run unservice   # stop and unregister it
 ```
 
 Upgrading through mise changes the binary path. Run `mise run service` again and re-grant Accessibility.
+
+The service writes its log to `~/Library/Logs/just-desktops.log` (earlier versions used `/tmp/just-desktops.log`; `mise run service` rewrites the plist, and the old file can be deleted).
 
 ## Quick start
 

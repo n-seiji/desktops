@@ -26,8 +26,11 @@ cask "just-desktops" do
          ~/.config/just-desktops/config. It is asked for at launch in that mode only.
 
     This build is not notarized. If macOS blocks it, open System Settings >
-    Privacy & Security and choose "Open Anyway" (macOS 15 and later), or
-    right-click the app and choose Open.
+    Privacy & Security and choose "Open Anyway" for this app only. On
+    macOS 15 and later right-click > Open no longer bypasses Gatekeeper. Do not
+    disable Gatekeeper (spctl --master-disable) or run xattr -cr. Homebrew has
+    already checked the download against the pinned sha256; the release also carries
+    a build attestation (gh attestation verify <zip> --repo n-seiji/just-desktops).
 
     The signature is ad-hoc, so macOS asks for the permissions again after
     every update. Grant them again, or remove the old entry and add the app.

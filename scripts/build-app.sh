@@ -1,7 +1,7 @@
 #!/bin/sh
 # Builds dist/just-desktops.app (universal, arm64 + x86_64).
 # Env: CFLAGS and FRAMEWORKS come from mise.toml. CODESIGN_IDENTITY defaults to "-"
-# (ad-hoc); any other value signs with the hardened runtime and a secure timestamp.
+# (ad-hoc); every build uses the hardened runtime, and a real identity adds a secure timestamp.
 set -eu
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
@@ -56,7 +56,7 @@ plutil -lint "$app/Contents/Info.plist" >/dev/null
 
 identity="${CODESIGN_IDENTITY:--}"
 if [ "$identity" = "-" ]; then
-  codesign --force --deep -s - "$app"
+  codesign --force --deep --options runtime -s - "$app"
 else
   codesign --force --deep --options runtime --timestamp -s "$identity" "$app"
 fi

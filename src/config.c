@@ -132,7 +132,7 @@ void config_load(void) {
             int parsed[JD_MAX_WS];
             int n = config_parse_keys(v, parsed);
             if (n) {
-                memcpy(keys, parsed, sizeof parsed);
+                memcpy(keys, parsed, sizeof *parsed * (size_t)n);
                 nkeys = n;
             }
             continue;

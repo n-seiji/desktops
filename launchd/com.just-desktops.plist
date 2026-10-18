@@ -18,6 +18,6 @@
     <key>ProcessType</key>
     <string>Interactive</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/just-desktops.log</string>
+    <string>@LOG@</string>
 </dict>
 </plist>
