@@ -9,6 +9,12 @@
 
 static dispatch_source_t signal_sources[3];
 
+void jd_quit(void) {
+    wm_restore_all();
+    border_hide();
+    exit(0);
+}
+
 int main(int argc, char **argv) {
     if (argc > 1) {
         if (!strcmp(argv[1], "--version") || !strcmp(argv[1], "-v")) {
@@ -22,14 +28,28 @@ int main(int argc, char **argv) {
     int lock = open("/tmp/just-desktops.lock", O_CREAT | O_RDWR, 0600);
     if (lock < 0 || flock(lock, LOCK_EX | LOCK_NB) != 0) {
         fprintf(stderr, "just-desktops: already running\n");
-        return 1;
+        return 0; // not a failure: launchd's KeepAlive would respawn a nonzero exit forever
     }
 
     @autoreleasepool {
+        // Installed before the Accessibility wait so a signal there exits cleanly too.
+        int sigs[3] = {SIGINT, SIGTERM, SIGHUP};
+        for (int i = 0; i < 3; i++) {
+            signal(sigs[i], SIG_IGN);
+            signal_sources[i] = dispatch_source_create(DISPATCH_SOURCE_TYPE_SIGNAL, sigs[i], 0, dispatch_get_main_queue());
+            dispatch_source_set_event_handler(signal_sources[i], ^{ jd_quit(); });
+            dispatch_resume(signal_sources[i]);
+        }
+
         NSDictionary *opts = @{(__bridge NSString *)kAXTrustedCheckOptionPrompt: @YES};
         if (!AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)opts)) {
             fprintf(stderr, "just-desktops: waiting for Accessibility permission\n");
-            while (!AXIsProcessTrusted()) sleep(2);
+            // Poll on the run loop, not sleep(): signals keep working while we wait.
+            while (!AXIsProcessTrusted()) {
+                @autoreleasepool {
+                    CFRunLoopRunInMode(kCFRunLoopDefaultMode, 1, false);
+                }
+            }
         }
         config_load();
         if (config_switcher_style() >= SW_SQUARE) thumb_request_access();
@@ -44,18 +64,6 @@ int main(int argc, char **argv) {
             return 1;
         }
 
-        // Put every parked window back before exiting.
-        int sigs[3] = {SIGINT, SIGTERM, SIGHUP};
-        for (int i = 0; i < 3; i++) {
-            signal(sigs[i], SIG_IGN);
-            signal_sources[i] = dispatch_source_create(DISPATCH_SOURCE_TYPE_SIGNAL, sigs[i], 0, dispatch_get_main_queue());
-            dispatch_source_set_event_handler(signal_sources[i], ^{
-                wm_restore_all();
-                border_hide();
-                exit(0);
-            });
-            dispatch_resume(signal_sources[i]);
-        }
         wm_on_focus();
     }
 

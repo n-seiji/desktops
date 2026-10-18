@@ -96,6 +96,8 @@ mise run test    # run the unit tests
 mise tasks       # list all tasks
 ```
 
+`scripts/footprint.sh [config-file] [seconds]` runs the built binary with that config under a temporary `HOME` and prints its idle memory footprint in bytes. Stop any running instance first, since only one can run.
+
 Pushing a `v*` tag makes GitHub Actions publish arm64 and x86_64 binaries to Releases.
 
 ## Limitations

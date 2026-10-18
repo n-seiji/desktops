@@ -8,6 +8,8 @@
 #define JD_MENUBAR_SLOTS 10 // menu bar glyph slots: with more windows the last slot is a "+k" count
 #define JD_MENUBAR_WINS 64  // windows the menu bar looks at
 
+void jd_quit(void); // put every parked window back and exit(0): the one clean way out
+
 // config.c
 void config_load(void);
 int config_assign(const char *bundle_id);

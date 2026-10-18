@@ -1,6 +1,5 @@
 #import <AppKit/AppKit.h>
 #import <CoreText/CoreText.h>
-#include <signal.h>
 #include <string.h>
 #include <unistd.h>
 #include "jd.h"
@@ -262,7 +261,7 @@ static void overflow_open(NSButton *b, NSRect slot) {
 }
 - (void)quit:(id)sender {
     (void)sender;
-    kill(getpid(), SIGTERM); // the same path as a signal: parked windows come back first
+    jd_quit();
 }
 @end
 
