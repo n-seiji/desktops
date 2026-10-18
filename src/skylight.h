@@ -13,7 +13,6 @@ extern CGError SLSSetWindowShape(int cid, uint32_t wid, float x_offset, float y_
 extern CGError SLSSetWindowResolution(int cid, uint32_t wid, double resolution);
 extern CGError SLSSetWindowOpacity(int cid, uint32_t wid, bool is_opaque);
 extern CGError SLSReleaseWindow(int cid, uint32_t wid);
-extern CGError SLSSetWindowTransform(int cid, uint32_t wid, CGAffineTransform t);
 extern CGError SLSSetWindowAlpha(int cid, uint32_t wid, float alpha);
 extern CGError SLSSetWindowLevel(int cid, uint32_t wid, int level);
 extern CGError SLSGetWindowLevel(int cid, uint32_t wid, int *level);
