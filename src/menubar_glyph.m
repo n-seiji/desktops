@@ -50,11 +50,55 @@ static void draw_chrome(CGContextRef c) {
     CGContextStrokePath(c);
 }
 
+// Ghost outline, d points inside the outer edge: an arched head, straight sides and a hem of three
+// scallops. Width and height shrink together by d, so the insets nest.
+static void ghost_path(CGContextRef c, CGFloat d) {
+    CGFloat mid = GLYPH_PX / 2.0, w = 17 - d, top = 39 - d, foot = 1.5 + d, hem = foot + 4;
+    CGFloat r = w * 0.9, seg = 2 * w / 3;
+    CGContextMoveToPoint(c, mid - w, hem + 2);
+    CGContextAddLineToPoint(c, mid - w, top - r);
+    CGContextAddCurveToPoint(c, mid - w, top - r * 0.45, mid - w * 0.55, top, mid, top);
+    CGContextAddCurveToPoint(c, mid + w * 0.55, top, mid + w, top - r * 0.45, mid + w, top - r);
+    CGContextAddLineToPoint(c, mid + w, hem + 2);
+    for (int k = 0; k < 3; k++) {
+        CGFloat x1 = mid + w - seg * k, x0 = x1 - seg;
+        CGContextAddCurveToPoint(c, x1 - seg * 0.05, foot - 1, x1 - seg * 0.2, foot, (x0 + x1) / 2, foot);
+        CGContextAddCurveToPoint(c, x0 + seg * 0.2, foot, x0 + seg * 0.05, hem - 1, x0, k == 2 ? hem + 2 : hem);
+    }
+    CGContextClosePath(c);
+}
+
+// Ghostty: outline ring, a gap and a filled body, with the prompt ">" and "-" and the gap cut out.
+static void draw_ghostty(CGContextRef c) {
+    CGFloat mid = GLYPH_PX / 2.0, y = 22.5, ring = 2.8, gap = 1.5, stroke = 3.6;
+    CGContextSetGrayFillColor(c, 1, 1);
+    CGContextSetGrayStrokeColor(c, 1, 1);
+    ghost_path(c, 0);
+    CGContextFillPath(c);
+    CGContextSetBlendMode(c, kCGBlendModeClear);
+    ghost_path(c, ring);
+    CGContextFillPath(c);
+    CGContextSetBlendMode(c, kCGBlendModeNormal);
+    ghost_path(c, ring + gap);
+    CGContextFillPath(c);
+    CGContextSetBlendMode(c, kCGBlendModeClear);
+    CGContextSetLineWidth(c, stroke);
+    CGContextSetLineCap(c, kCGLineCapRound);
+    CGContextSetLineJoin(c, kCGLineJoinRound);
+    CGContextMoveToPoint(c, mid - 9, y + 4.4);
+    CGContextAddLineToPoint(c, mid - 4.6, y);
+    CGContextAddLineToPoint(c, mid - 9, y - 4.4);
+    CGContextMoveToPoint(c, mid + 1, y);
+    CGContextAddLineToPoint(c, mid + 8, y);
+    CGContextStrokePath(c);
+}
+
 static const struct {
     const char *bundle;
     void (*draw)(CGContextRef);
 } art[] = {
     {"com.google.Chrome", draw_chrome},
+    {"com.mitchellh.ghostty", draw_ghostty},
 };
 
 static CGImageRef drawn_mask(NSString *bundle) {
