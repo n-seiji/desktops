@@ -235,7 +235,7 @@ static void draw_card(card_t *k) {
         }
     }
     CFStringRef text = sw_text(e);
-    uint32_t rgb = peek && dark ? 0xffffff : pal.title;
+    uint32_t rgb = peek ? 0xffffff : pal.title; // peek titles may sit over the desktop
     CTLineRef l = text ? sw_fit(fonts[F_CAPTION], text, rgb, THUMB_W - ICON - ICON_GAP,
                                 sw_is_path(text) ? kCTLineTruncationStart : kCTLineTruncationEnd) : NULL;
     CGFloat tw = l ? CTLineGetTypographicBounds(l, NULL, NULL, NULL) : 0;
@@ -243,7 +243,7 @@ static void draw_card(card_t *k) {
     if (e->icon) draw_image(c, e->icon, (CGRect){{x, CAP_CY - ICON / 2}, {ICON, ICON}}, false);
     if (l) {
         if (peek) {
-            CGColorRef sh = CGColorCreateGenericGray(0, 0.55);
+            CGColorRef sh = CGColorCreateGenericGray(0, dark ? 0.55 : 0.7);
             CGContextSetShadowWithColor(c, CGSizeMake(0, -1), 4, sh);
             CGColorRelease(sh);
         }
