@@ -526,7 +526,7 @@ static void draw_more(CGContextRef c, CGFloat x, int k) {
 }
 
 static void draw_app(CGContextRef c, CGRect slot, CGImageRef mask, bool focused) {
-    CGRect art = CGRectInset(slot, PAD, PAD);
+    CGRect inner = CGRectInset(slot, PAD, PAD);
     if (focused) {
         CGPathRef tile = CGPathCreateWithRoundedRect(slot, 5, 5, NULL);
         CGContextAddPath(c, tile);
@@ -534,7 +534,7 @@ static void draw_app(CGContextRef c, CGRect slot, CGImageRef mask, bool focused)
         CGPathRelease(tile);
         CGContextSetBlendMode(c, kCGBlendModeDestinationOut);
     }
-    if (mask) CGContextDrawImage(c, art, mask);
+    if (mask) CGContextDrawImage(c, inner, mask);
     CGContextSetBlendMode(c, kCGBlendModeNormal);
 }
 

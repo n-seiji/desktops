@@ -295,9 +295,9 @@ static void instant_end(void) {
 
 static void instant_step(int dir) {
     if (!snap) {
-        int sel;
-        snap_n = wm_window_ids(dir, &snap, &sel);
-        snap_at = sel;
+        int start;
+        snap_n = wm_window_ids(dir, &snap, &start);
+        snap_at = start;
         if (!snap_n) instant_end();
     } else {
         snap_at = ((snap_at + dir) % snap_n + snap_n) % snap_n;
@@ -340,8 +340,8 @@ void switcher_commit(void) {
     stop_delay();
     waiting = false;
     uint32_t *ids = NULL;
-    int sel, count = wm_window_ids(first_dir, &ids, &sel);
-    if (count) wm_focus_wid(ids[((sel + extra) % count + count) % count]);
+    int start, count = wm_window_ids(first_dir, &ids, &start);
+    if (count) wm_focus_wid(ids[((start + extra) % count + count) % count]);
     free(ids);
 }
 

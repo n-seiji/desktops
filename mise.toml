@@ -1,5 +1,5 @@
 [env]
-CFLAGS = "-std=gnu11 -O2 -Wall -Wextra -mmacosx-version-min=13.0 -fobjc-arc"
+CFLAGS = "-std=gnu11 -O2 -Wall -Wextra -Wshadow -Wformat=2 -Wstrict-prototypes -Wmissing-prototypes -mmacosx-version-min=13.0 -fobjc-arc"
 FRAMEWORKS = "-framework ApplicationServices -framework AppKit -framework CoreText -F/System/Library/PrivateFrameworks -framework SkyLight -weak_framework ScreenCaptureKit"
 
 [tasks.build]
