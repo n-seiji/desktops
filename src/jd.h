@@ -81,6 +81,7 @@ int wm_current(void);
 int wm_windows(int dir, sw_entry_t **out, int *sel);
 int wm_window_ids(int dir, uint32_t **out, int *sel); // wm_windows without icons and text; caller frees *out
 void wm_focus_wid(uint32_t wid);
+void wm_focus_app(pid_t pid); // focus that app's window on this desktop (the menu bar item's click)
 void wm_restore_all(void);
 
 // apps.m

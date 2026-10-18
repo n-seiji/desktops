@@ -523,6 +523,31 @@ void wm_focus_wid(uint32_t wid) {
     refresh_border();
 }
 
+// Focuses an app's window on this desktop: the one the app itself calls main, else the first shown one.
+void wm_focus_app(pid_t pid) {
+    app_t *a = find_app(pid);
+    if (!a) return;
+    win_t *pick = NULL, *main_w = NULL;
+    CFTypeRef v = NULL;
+    if (AXUIElementCopyAttributeValue(a->el, kAXMainWindowAttribute, &v) == kAXErrorSuccess && v) {
+        uint32_t wid = 0;
+        if (_AXUIElementGetWindow(v, &wid) == kAXErrorSuccess) main_w = find_wid(wid);
+        CFRelease(v);
+    }
+    CFArrayRef shown = shown_windows();
+    for (int i = 0; i < nwins; i++) {
+        win_t *w = &wins[i];
+        if (w->pid != pid || !switchable(w, shown)) continue;
+        if (w == main_w) {
+            pick = w;
+            break;
+        }
+        if (!pick) pick = w;
+    }
+    if (shown) CFRelease(shown);
+    if (pick) wm_focus_wid(pick->wid);
+}
+
 void wm_restore_all(void) {
     for (int i = 0; i < nwins; i++) show(&wins[i]);
 }

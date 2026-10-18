@@ -29,6 +29,7 @@ typedef struct {
 } glyph_t;
 
 static NSStatusItem *item;
+static NSMenu *menu;
 static glyph_t *glyphs;
 static int nglyphs;
 
@@ -37,10 +38,34 @@ static int last_n = -1;
 static pid_t last_pids[MAX_APPS];
 static pid_t last_front;
 
+// Index of the app slot under x (points from the left edge of the strip), or -1 for a gap,
+// the key box or outside.
+static int slot_at(CGFloat x, int n) {
+    if (x < 0) return -1;
+    int i = (int)(x / (SLOT + GAP));
+    return i < n && x - i * (SLOT + GAP) < SLOT ? i : -1;
+}
+
 @interface JDMenuTarget : NSObject
+- (void)clicked:(id)sender;
+- (void)quit:(id)sender;
 @end
 
 @implementation JDMenuTarget
+- (void)clicked:(id)sender {
+    NSButton *b = sender;
+    NSEvent *e = NSApp.currentEvent;
+    if (!e) return;
+    if (e.type == NSEventTypeRightMouseUp || e.modifierFlags & NSEventModifierFlagControl) {
+        [menu popUpMenuPositioningItem:nil atLocation:NSMakePoint(0, b.bounds.size.height + 6) inView:b];
+        return;
+    }
+    if (last_n <= 0) return;
+    CGFloat strip = (last_n + 1) * SLOT + last_n * GAP;
+    CGFloat x = [b convertPoint:e.locationInWindow fromView:nil].x - (b.bounds.size.width - strip) / 2;
+    int i = slot_at(x, last_n);
+    if (i >= 0) wm_focus_app(last_pids[i]);
+}
 - (void)quit:(id)sender {
     (void)sender;
     kill(getpid(), SIGTERM); // the same path as a signal: parked windows come back first
@@ -240,15 +265,19 @@ static void render(int ws, const pid_t *pids, int n, pid_t front) {
     item.button.image = img;
 }
 
+
 void menubar_init(void) {
     [NSApplication sharedApplication];
     [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
     target = [JDMenuTarget new];
-    NSMenu *menu = [NSMenu new];
+    menu = [NSMenu new];
     NSMenuItem *quit = [menu addItemWithTitle:@"Quit just-desktops" action:@selector(quit:) keyEquivalent:@""];
     quit.target = target;
     item = [NSStatusBar.systemStatusBar statusItemWithLength:NSVariableStatusItemLength];
-    item.menu = menu;
+    // No permanent menu: it would swallow left clicks. It opens on a right or control click.
+    item.button.target = target;
+    item.button.action = @selector(clicked:);
+    [item.button sendActionOn:NSEventMaskLeftMouseUp | NSEventMaskRightMouseUp];
 }
 
 void menubar_update(int ws, const pid_t *pids, int n, pid_t front) {
