@@ -1,6 +1,13 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+    <img src="assets/logo-light.svg" width="128" height="128" alt="just-desktops">
+  </picture>
+</p>
+
 # just-desktops
 
-A tiny macOS-only daemon that does two things: switch between workspaces, and draw a white border around the focused window. Nothing else.
+A tiny macOS-only daemon that does two things: switch between workspaces, and draw a ring around the focused window. Nothing else.
 
 ## Inspiration
 
@@ -15,13 +22,17 @@ If you want tiling, layouts, colors or more options, use those projects. just-de
 
 | Key | Action |
 |---|---|
-| ⌥1 … ⌥9 (⌥0) | Switch to workspace 1 … 9 (10) |
-| ⌥⇧1 … ⌥⇧9 (⌥⇧0) | Move the focused window to that workspace |
-| ⌥B | Toggle the border |
+| ⌥1 ⌥2 ⌥3 ⌥Q ⌥W ⌥E | Switch to Desktop 1 … 6 |
+| ⌥⇧ + the same key | Move the focused window to that desktop |
+| ⌥Tab / ⌥⇧Tab (hold ⌥) | Open a list of the windows in this workspace and move the selection forward / backward (wraps around). Release ⌥ to switch to the selected window; Esc cancels |
 
-- Apps can be pinned to a workspace in the config file. Existing and newly opened windows go there.
+- Each switcher row shows the app name when the app has one window. With several, rows show the window titles ("App 2" when a title is empty or repeated).
+- The switcher panel exists only while ⌥ is held after a Tab. Nothing is held in memory while it is closed.
+- ⌥Tab and ⌥⇧Tab are always captured by just-desktops, so apps never see those keys.
+- The desktop keys are set with `keys` in the config (digits and letters, at most 10). Other keys pass through untouched.
+- Apps can be pinned to a desktop in the config file. Existing and newly opened windows go there.
 - Focusing a window on another workspace (Cmd-Tab, Dock, …) switches to that workspace.
-- The border is white, 4pt wide, and only drawn around the focused window.
+- The border is a thin ring floating 3pt off the focused window, brighter along the top. It is white in Dark mode and black in Light mode, and the switcher panel has a light and a dark look too. Both follow the system appearance, and the border updates the moment it changes. Turn it off with `border = off` in the config; no border window is created then.
 
 ## Design
 
@@ -56,7 +67,7 @@ Upgrading through mise changes the binary path, so run `mise run service` again 
 
 ```
 border = on
-workspaces = 9
+keys = 1 2 3 q w e
 com.apple.Safari = 1
 com.googlecode.iterm2 = 2
 ```
@@ -70,6 +81,7 @@ Requires the Xcode Command Line Tools (`xcode-select --install`) and [mise](http
 ```sh
 mise run build   # build bin/just-desktops
 mise run run     # build and run in the foreground
+mise run test    # run the unit tests
 mise tasks       # list all tasks
 ```
 
@@ -79,4 +91,12 @@ Pushing a `v*` tag makes GitHub Actions publish arm64 and x86_64 binaries to Rel
 
 - Windows are parked on the main display only; multiple displays are not supported yet.
 - After a crash, parked windows stay in the bottom-right corner until the next launch, which moves them back on screen.
-- Key bindings are fixed.
+- ⌥Tab, ⌥⇧Tab and the ⌥ / ⌥⇧ modifiers are fixed; only the desktop keys are configurable.
+
+## License
+
+[GPL-3.0](LICENSE).
+
+## Support
+
+If just-desktops saves you a few keystrokes a day, you can [buy me a coffee](https://buymeacoffee.com/sijis).

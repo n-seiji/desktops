@@ -1,6 +1,6 @@
 [env]
 CFLAGS = "-std=gnu11 -O2 -Wall -Wextra -mmacosx-version-min=13.0 -fobjc-arc"
-FRAMEWORKS = "-framework ApplicationServices -framework AppKit -F/System/Library/PrivateFrameworks -framework SkyLight"
+FRAMEWORKS = "-framework ApplicationServices -framework AppKit -framework CoreText -F/System/Library/PrivateFrameworks -framework SkyLight"
 
 [tasks.build]
 description = "Build bin/just-desktops"
@@ -10,6 +10,16 @@ run = [
   "mkdir -p bin",
   "clang $CFLAGS src/*.m src/*.c -o bin/just-desktops $FRAMEWORKS",
   "codesign -fs - bin/just-desktops",
+]
+
+[tasks.test]
+description = "Run unit tests"
+run = [
+  "mkdir -p bin",
+  "clang $CFLAGS tests/title_test.c src/title.c -o bin/title_test -framework CoreFoundation",
+  "bin/title_test",
+  "clang $CFLAGS tests/config_test.c src/config.c -o bin/config_test",
+  "bin/config_test",
 ]
 
 [tasks.run]

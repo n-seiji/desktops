@@ -2,6 +2,7 @@
 #include "extern.h"
 #include <dispatch/dispatch.h>
 #include <stdlib.h>
+#include <string.h>
 
 // Workspaces are emulated like AeroSpace does: windows of inactive
 // workspaces are parked at the bottom-right corner of the main display,
@@ -30,7 +31,7 @@ static int napps, capapps;
 static int cur = 1;
 static uint32_t last_focus[JD_MAX_WS + 1];
 static bool border_on = true;
-static double follow_block_until;
+static uint32_t stale; // parked window macOS still reports as focused
 static AXUIElementRef sys;
 
 static void ax_cb(AXObserverRef obs, AXUIElementRef el, CFStringRef n, void *ctx);
@@ -77,8 +78,6 @@ static bool near_hide_point(CGPoint p) {
     return p.x >= h.x - 4 && p.y >= h.y - 64;
 }
 
-static double now(void) { return CFAbsoluteTimeGetCurrent(); }
-
 // ---- lookup ----
 
 static app_t *find_app(pid_t pid) {
@@ -102,7 +101,7 @@ static win_t *first_in(int ws) {
 
 static void remove_win_at(int i) {
     CFRelease(wins[i].el);
-    wins[i] = wins[--nwins];
+    memmove(&wins[i], &wins[i + 1], sizeof *wins * (--nwins - i)); // keep order: cycling relies on it
 }
 
 // ---- hide / show / focus ----
@@ -166,8 +165,10 @@ static win_t *track(app_t *a, AXUIElementRef el) {
 
     void *ctx = (void *)(intptr_t)a->pid;
     AXObserverAddNotification(a->obs, el, kAXUIElementDestroyedNotification, ctx);
-    AXObserverAddNotification(a->obs, el, kAXMovedNotification, ctx);
-    AXObserverAddNotification(a->obs, el, kAXResizedNotification, ctx);
+    if (border_on) {
+        AXObserverAddNotification(a->obs, el, kAXMovedNotification, ctx);
+        AXObserverAddNotification(a->obs, el, kAXResizedNotification, ctx);
+    }
     AXObserverAddNotification(a->obs, el, kAXWindowMiniaturizedNotification, ctx);
     AXObserverAddNotification(a->obs, el, kAXWindowDeminiaturizedNotification, ctx);
 
@@ -178,8 +179,12 @@ static win_t *track(app_t *a, AXUIElementRef el) {
 static win_t *focused(void) {
     AXUIElementRef app = NULL, win = NULL;
     win_t *w = NULL;
-    if (AXUIElementCopyAttributeValue(sys, kAXFocusedApplicationAttribute, (CFTypeRef *)&app) != kAXErrorSuccess || !app)
-        return NULL;
+    // The system-wide query fails for some apps (Slack: kAXErrorCannotComplete); ask the frontmost app itself.
+    if (AXUIElementCopyAttributeValue(sys, kAXFocusedApplicationAttribute, (CFTypeRef *)&app) != kAXErrorSuccess || !app) {
+        app_t *a = find_app(apps_frontmost());
+        if (!a) return NULL;
+        app = (AXUIElementRef)CFRetain(a->el);
+    }
     if (AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute, (CFTypeRef *)&win) == kAXErrorSuccess && win) {
         uint32_t wid = 0;
         if (_AXUIElementGetWindow(win, &wid) == kAXErrorSuccess) w = find_wid(wid);
@@ -196,10 +201,11 @@ static win_t *focused(void) {
 }
 
 static void refresh_border(void) {
+    if (!border_on) return;
     win_t *w = focused();
     CGPoint p;
     CGSize s;
-    if (!border_on || !w || w->hidden || w->ws != cur ||
+    if (!w || w->hidden || w->ws != cur ||
         get_bool(w->el, kAXMinimizedAttribute) || get_bool(w->el, CFSTR("AXFullScreen")) ||
         !get_value(w->el, kAXPositionAttribute, kAXValueTypeCGPoint, &p) ||
         !get_value(w->el, kAXSizeAttribute, kAXValueTypeCGSize, &s)) {
@@ -298,12 +304,16 @@ void wm_on_focus(void) {
     win_t *w = focused();
     if (w && w->ws != cur) {
         // Focus moved to a window on another workspace (Cmd-Tab, Dock, ...): follow it.
-        if (now() < follow_block_until) return;
+        if (w->wid == stale) return;
+        stale = 0;
         last_focus[w->ws] = w->wid;
         wm_switch(w->ws);
         return;
     }
-    if (w) last_focus[cur] = w->wid;
+    if (w) {
+        stale = 0;
+        last_focus[cur] = w->wid;
+    }
     refresh_border();
 }
 
@@ -314,12 +324,12 @@ void wm_switch(int ws) {
 
     int old = cur;
     cur = ws;
+    stale = f && f->ws == old ? f->wid : 0;
     for (int i = 0; i < nwins; i++)
         if (wins[i].ws == ws) show(&wins[i]);
     for (int i = 0; i < nwins; i++)
         if (wins[i].ws == old) hide(&wins[i]);
 
-    follow_block_until = now() + 0.4;
     focus_in_current();
     refresh_border();
 }
@@ -332,14 +342,77 @@ void wm_move_focused(int ws) {
     last_focus[ws] = w->wid;
     if (ws != cur) {
         hide(w);
-        follow_block_until = now() + 0.4;
+        stale = w->wid;
         focus_in_current();
     }
     refresh_border();
 }
 
-void wm_toggle_border(void) {
-    border_on = !border_on;
+static CFStringRef title_of(AXUIElementRef el) {
+    CFTypeRef v = NULL;
+    if (AXUIElementCopyAttributeValue(el, kAXTitleAttribute, &v) != kAXErrorSuccess || !v) return NULL;
+    if (CFGetTypeID(v) == CFStringGetTypeID()) return v;
+    CFRelease(v);
+    return NULL;
+}
+
+int wm_current(void) {
+    return cur;
+}
+
+// Replaces each entry's title with its row text: see title_labels.
+static void label_entries(sw_entry_t *list, int n) {
+    int *at = malloc(sizeof *at * n);
+    CFStringRef *titles = malloc(sizeof *titles * n * 2), *labels = titles + n;
+    if (at && titles) {
+        for (int i = 0; i < n; i++) {
+            bool first = list[i].app != NULL;
+            for (int j = 0; j < i && first; j++) first = !list[j].app || !CFEqual(list[j].app, list[i].app);
+            if (!first) continue;
+            int k = 0;
+            for (int j = i; j < n; j++) {
+                if (!list[j].app || !CFEqual(list[j].app, list[i].app)) continue;
+                at[k] = j;
+                titles[k++] = list[j].title;
+            }
+            title_labels(list[i].app, titles, k, labels);
+            for (int m = 0; m < k; m++) {
+                if (list[at[m]].title) CFRelease(list[at[m]].title);
+                list[at[m]].title = labels[m];
+            }
+        }
+    }
+    free(at);
+    free(titles);
+}
+
+// Switchable windows of the current workspace in array order. *out is malloc'd with
+// +1 icon/app/title per entry (title is the row text; the caller releases them); *sel is the window after the
+// focused one (before it for dir < 0).
+int wm_windows(int dir, sw_entry_t **out, int *sel) {
+    sw_entry_t *list = malloc(sizeof *list * (nwins ? nwins : 1));
+    if (!list) return 0;
+    win_t *f = focused();
+    int n = 0, at = -1;
+    for (int i = 0; i < nwins; i++) {
+        win_t *w = &wins[i];
+        if (w->ws != cur || w->hidden || get_bool(w->el, kAXMinimizedAttribute)) continue;
+        if (w == f) at = n;
+        CFStringRef app = apps_name(w->pid), raw = title_of(w->el);
+        list[n++] = (sw_entry_t){w->wid, apps_icon(w->pid, 56), app, raw ? title_clean(raw, app) : NULL};
+        if (raw) CFRelease(raw);
+    }
+    label_entries(list, n);
+    *sel = n ? (at < 0 ? (dir > 0 ? 0 : n - 1) : ((at + dir) % n + n) % n) : 0;
+    *out = list;
+    return n;
+}
+
+void wm_focus_wid(uint32_t wid) {
+    win_t *w = find_wid(wid);
+    if (!w || w->ws != cur) return;
+    last_focus[cur] = wid;
+    focus(w);
     refresh_border();
 }
 
