@@ -9,7 +9,7 @@ outputs = ["bin/just-desktops"]
 run = [
   "mkdir -p bin",
   "clang $CFLAGS src/*.m src/*.c -o bin/just-desktops $FRAMEWORKS",
-  "codesign -fs - bin/just-desktops",
+  "codesign -fs - --options runtime bin/just-desktops",
 ]
 
 [tasks.test]
@@ -34,7 +34,7 @@ for arch in arm64 x86_64; do
   out="dist/$arch/just-desktops"
   mkdir -p "dist/$arch"
   clang $CFLAGS -arch "$arch" src/*.m src/*.c -o "$out" $FRAMEWORKS
-  codesign -fs - "$out"
+  codesign -fs - --options runtime "$out"
   tar -czf "dist/just-desktops-darwin-$arch.tar.gz" -C "dist/$arch" just-desktops
 done
 '''
