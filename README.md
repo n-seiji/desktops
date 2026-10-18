@@ -124,7 +124,7 @@ The switcher memory is released when you let go of `⌥`. More in [switcher](doc
 
 ## Development
 
-Needs the Xcode Command Line Tools and [mise](https://mise.jdx.dev). Use `mise run build`, `mise run run` (build and run in the foreground), `mise run test` and `mise run test-san` (the same tests under the address and undefined behaviour sanitizers). `scripts/footprint.sh [config-file] [seconds]` prints the idle footprint in bytes; stop any running instance first. Pushing a `v*` tag publishes arm64 and x86_64 binaries to Releases.
+Needs the Xcode Command Line Tools and [mise](https://mise.jdx.dev). Use `mise run build`, `mise run run` (build and run in the foreground), `mise run test` and `mise run test-san` (the same tests under the address and undefined behaviour sanitizers). `scripts/footprint.sh [config-file] [seconds]` prints the idle footprint in bytes; stop any running instance first. Pushing a `v*` tag publishes arm64 and x86_64 binaries to Releases. [docs/architecture.md](docs/architecture.md) maps the code: modules, data flow, threading and the memory rules.
 
 ## Limitations
 
