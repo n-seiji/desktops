@@ -5,7 +5,7 @@
 //   ⌥<key>   switch to the desktop bound to the key (`keys` in config, default 1 2 3 q w e)
 //   ⌥⇧<key>  move focused window to that desktop
 //   ⌥Tab / ⌥⇧Tab  open the window switcher / move the selection; releasing ⌥ commits, Esc cancels
-//                 (only when `switcher = on`; otherwise Tab passes through)
+//                 (only when `switcher = on`; otherwise Tab passes through). ⌥<key> while it is open closes it first.
 
 #define KEY_TAB 0x30
 #define KEY_ESC 0x35
@@ -56,6 +56,10 @@ static CGEventRef on_key(CGEventTapProxy proxy, CGEventType type, CGEventRef ev,
         if (key != config_key(i)) continue;
         int ws = i + 1;
         if (!repeat) {
+            if (armed) {
+                armed = false;
+                dispatch_async(dispatch_get_main_queue(), ^{ switcher_cancel(); });
+            }
             if (alt) dispatch_async(dispatch_get_main_queue(), ^{ wm_switch(ws); });
             else dispatch_async(dispatch_get_main_queue(), ^{ wm_move_focused(ws); });
         }

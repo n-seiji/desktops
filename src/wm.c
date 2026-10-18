@@ -33,7 +33,12 @@ static int cur = 1;
 static uint32_t last_focus[JD_MAX_WS + 1];
 static bool border_on = true;
 static uint32_t stale; // parked window macOS still reports as focused
+static double settle_until; // until then, parked windows macOS activates on its own are not pulled
 static AXUIElementRef sys;
+
+// After a desktop change macOS hands activation from one parked window's app to the next,
+// about a second apart; each one extends the quiet period a user's Cmd-Tab has to wait out.
+#define SETTLE_S 1.5
 
 static void ax_cb(AXObserverRef obs, AXUIElementRef el, CFStringRef n, void *ctx);
 static void refresh_menubar(void);
@@ -303,8 +308,12 @@ void wm_init(void) {
 void wm_on_focus(void) {
     win_t *w = focused();
     if (w && w->ws != cur) {
-        // A parked window took focus (Cmd-Tab, Dock, launch, unhide): pull it here, unless it is the one we just parked.
-        if (w->wid == stale) return;
+        // A parked window took focus (Cmd-Tab, Dock, launch, unhide): pull it here, unless macOS is still
+        // settling after a desktop change or it is the one we just parked.
+        double t = CFAbsoluteTimeGetCurrent();
+        bool settling = t < settle_until;
+        if (settling) settle_until = t + SETTLE_S;
+        if (settling || w->wid == stale) return;
         w->ws = cur;
         show(w);
     }
@@ -330,6 +339,7 @@ void wm_switch(int ws) {
         if (wins[i].ws == old) hide(&wins[i]);
 
     focus_in_current();
+    settle_until = CFAbsoluteTimeGetCurrent() + SETTLE_S;
     refresh_border();
     refresh_menubar();
     // WindowServer may not list the windows just shown as on screen yet.
@@ -347,6 +357,7 @@ void wm_move_focused(int ws) {
         hide(w);
         stale = w->wid;
         focus_in_current();
+        settle_until = CFAbsoluteTimeGetCurrent() + SETTLE_S;
     }
     refresh_border();
     refresh_menubar();
