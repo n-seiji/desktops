@@ -21,6 +21,14 @@ static void check_on(const char *v, bool want) {
     }
 }
 
+static void check_switcher(const char *v, sw_style_t want) {
+    sw_style_t got = config_parse_switcher(v);
+    if (got != want) {
+        printf("FAIL config_parse_switcher(\"%s\") = %d; want %d\n", v, got, want);
+        failed++;
+    }
+}
+
 static void check_key_char(int i, char want) {
     char got = config_key_char(i);
     if (got != want) {
@@ -40,6 +48,17 @@ int main(void) {
     check_on("off", false);
     check_on("", false);
     check_on("ON", false);
+    check_switcher("list", SW_LIST);
+    check_switcher("square", SW_SQUARE);
+    check_switcher("peek", SW_PEEK);
+    check_switcher("off", SW_OFF);
+    check_switcher("on", SW_LIST);
+    check_switcher("garbage", SW_LIST);
+    check_switcher("", SW_LIST);
+    if (config_switcher_style() != SW_LIST) {
+        printf("FAIL default config_switcher_style() = %d; want %d\n", config_switcher_style(), SW_LIST);
+        failed++;
+    }
     check("1 2 3 q w e", 6, (int[]){0x12, 0x13, 0x14, 0x0C, 0x0D, 0x0E});
     check("0 9", 2, (int[]){0x1D, 0x19});
     check("  a   j\tz ", 3, (int[]){0x00, 0x26, 0x06});

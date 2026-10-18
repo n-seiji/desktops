@@ -6,7 +6,7 @@
 
 // ~/.config/just-desktops/config
 //   border = on|off
-//   switcher = on|off     (⌥Tab window switcher)
+//   switcher = list|square|peek|off   (⌥Tab window switcher; on = list)
 //   menubar = on|off      (menu bar item: current desktop and its apps)
 //   keys = 1 2 3 q w e    (digits and letters; the n-th key is Desktop n)
 //   <bundle id> = <desktop number>
@@ -16,7 +16,7 @@ typedef struct { char id[128]; int ws; } assign_t;
 static assign_t *assigns;
 static int nassigns;
 static bool border = true;
-static bool switcher = true;
+static sw_style_t switcher = SW_LIST;
 static bool menubar = false;
 static int keys[JD_MAX_WS] = {0x12, 0x13, 0x14, 0x0C, 0x0D, 0x0E}; // 1 2 3 q w e
 static int nkeys = 6;
@@ -54,6 +54,14 @@ int config_parse_keys(const char *list, int *codes) {
     return n;
 }
 
+// "off" (or false/no) turns it off; "on" and anything unknown give the default list style.
+sw_style_t config_parse_switcher(const char *v) {
+    if (!strcmp(v, "off") || !strcmp(v, "false") || !strcmp(v, "no")) return SW_OFF;
+    if (!strcmp(v, "square")) return SW_SQUARE;
+    if (!strcmp(v, "peek")) return SW_PEEK;
+    return SW_LIST;
+}
+
 void config_load(void) {
     const char *home = getenv("HOME");
     char path[1024];
@@ -75,7 +83,7 @@ void config_load(void) {
             continue;
         }
         if (!strcmp(k, "switcher")) {
-            switcher = config_parse_on(v);
+            switcher = config_parse_switcher(v);
             continue;
         }
         if (!strcmp(k, "menubar")) {
@@ -111,7 +119,7 @@ int config_assign(const char *bundle_id) {
 
 bool config_border(void) { return border; }
 
-bool config_switcher(void) { return switcher; }
+sw_style_t config_switcher_style(void) { return switcher; }
 
 bool config_menubar(void) { return menubar; }
 

@@ -10,7 +10,9 @@
 void config_load(void);
 int config_assign(const char *bundle_id);
 bool config_border(void);
-bool config_switcher(void); // ⌥Tab is captured and the window switcher runs
+typedef enum { SW_OFF, SW_LIST, SW_SQUARE, SW_PEEK } sw_style_t;
+sw_style_t config_switcher_style(void); // off: ⌥Tab passes through; otherwise it is captured
+sw_style_t config_parse_switcher(const char *v); // "list"/"on", "square", "peek", "off"; anything else is list
 bool config_menubar(void);  // the menu bar item is shown
 bool config_parse_on(const char *v);
 int config_workspaces(void); // number of desktops: how many keys are bound
@@ -29,12 +31,18 @@ void border_hide(void);
 // switcher.c
 typedef struct {
     uint32_t wid;
+    pid_t pid;
     CGImageRef icon;
     CFStringRef app, title;
 } sw_entry_t;
 void switcher_step(int dir);
 void switcher_commit(void);
 void switcher_cancel(void);
+
+// switcher_card.c: the square and peek styles
+void card_step(int dir, bool peek);
+void card_commit(void);
+void card_cancel(void);
 
 // menubar.m
 void menubar_init(void);

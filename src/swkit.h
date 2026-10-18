@@ -1,0 +1,33 @@
+#pragma once
+#include "jd.h"
+#include <CoreText/CoreText.h>
+
+// Drawing and window helpers shared by the list (switcher.c) and card (switcher_card.c) switchers.
+
+// The panel's colours; the dark one is chosen unless the system is in Light mode.
+typedef struct {
+    uint32_t tint;
+    CGFloat tint_a;
+    CGFloat edge_gray, edge_top, edge_bottom; // the border's colour and its alpha at the top and the flat rim
+    uint32_t header, title, highlight;
+    CGFloat highlight_a;
+} palette_t;
+
+const palette_t *sw_palette(void); // by the system appearance right now
+
+CTFontRef sw_font(CGFloat size, CGFloat weight);
+void sw_color(CGContextRef c, uint32_t rgb, CGFloat a, bool stroke);
+uint32_t sw_mix(uint32_t fg, uint32_t bg, CGFloat t); // fg at t over bg
+bool sw_is_path(CFStringRef s);
+// One line of text in font, cut with an ellipsis to maxw (at the end, or at the start for paths).
+CTLineRef sw_fit(CTFontRef font, CFStringRef s, uint32_t rgb, CGFloat maxw, CTLineTruncationType how);
+// Draws l with its x-height-ish middle on cy, then releases it. The context is y-down.
+void sw_put(CGContextRef c, CTLineRef l, CGFloat x, CGFloat cy);
+void sw_fill_rrect(CGContextRef c, CGRect r, CGFloat radius, uint32_t rgb, CGFloat a);
+// A 1pt border drawn inside r, lit along the top and fading to a flat rim.
+void sw_edge_rrect(CGContextRef c, CGRect r, CGFloat radius, const palette_t *pal);
+// The rounded rect's shape in horizontal half-point strips, so the blur does not show outside the corners.
+CFTypeRef sw_rounded_region(CGSize sz, CGFloat radius);
+// A translucent, mouse-transparent window at at of size sz, drawn at 2x. With radius > 0 the background
+// is blurred and the window takes the rounded shape.
+uint32_t sw_window(int cid, CGPoint at, CGSize sz, CGFloat radius, int blur, CGContextRef *out);
