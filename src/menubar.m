@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include "jd.h"
 #include "select.h"
+#include "strip.h"
 
 // Optional menu bar item: one line-art glyph per window on the current desktop (an app's
 // windows side by side), then the desktop's key in an outlined box at the right end. The
@@ -15,9 +16,7 @@
 enum {
     SCALE = 2,       // pixels per point
     HEIGHT = 22,     // points, the status item's thickness
-    SLOT = 20,       // key box and glyph tile size
     PAD = 1,         // tile edge to glyph
-    GAP = 4,
     GLYPH_PX = 40,
     RIM = 2,         // pixels shaved off the icon's outline
     LO = 75,         // colour distance from the tile where the glyph starts to show...
@@ -41,15 +40,6 @@ static uint32_t last_hash;
 static pid_t last_pids[JD_MENUBAR_SLOTS];
 static uint32_t last_wids[JD_MENUBAR_SLOTS];
 static uint32_t last_front;
-
-// Index of the window slot under x (points from the left edge of the strip), or -1 for a gap,
-// the overflow slot, the key box or outside.
-static int slot_at(CGFloat x, int n) {
-    if (x < 0) return -1;
-    int i = (int)(x / (SLOT + GAP));
-    return i < n && x - i * (SLOT + GAP) < SLOT ? i : -1;
-}
-
 
 // The "+k" panel: one row per hidden window (icon, title) under a small arrow that points at
 // the slot. Drawn by hand in a single view, so a row costs no subview. Created on click and
@@ -253,18 +243,15 @@ static NSMenu *build_menu(void);
         overflow_close();
         return;
     }
-    int slots = last_n + (last_over > 0);
-    CGFloat strip = (slots + 1) * SLOT + slots * GAP;
-    CGFloat x = [b convertPoint:e.locationInWindow fromView:nil].x - (b.bounds.size.width - strip) / 2;
-    int i = slot_at(x, last_n);
-    if (i >= 0) {
-        wm_focus_wid(last_wids[i]);
+    strip_hit_t hit = strip_hit([b convertPoint:e.locationInWindow fromView:nil].x, b.bounds.size.width, last_n, last_over);
+    if (hit.slot >= 0) {
+        wm_focus_wid(last_wids[hit.slot]);
         return;
     }
     if (CFAbsoluteTimeGetCurrent() - overflow_closed_at < 0.4) return;
-    if (last_over > 0 && slot_at(x, last_n + 1) == last_n) {
-        CGFloat left = (b.bounds.size.width - strip) / 2 + last_n * (SLOT + GAP);
-        overflow_open(b, NSMakeRect(left, 0, SLOT, b.bounds.size.height));
+    if (hit.overflow) {
+        CGFloat left = strip_overflow_left(b.bounds.size.width, last_n, last_over);
+        overflow_open(b, NSMakeRect(left, 0, STRIP_SLOT, b.bounds.size.height));
     }
 }
 - (void)quit:(id)sender {
@@ -476,7 +463,7 @@ static CGImageRef mask_for(pid_t pid) {
 // The key box sits in the slot at x; the glyph is centred by its real outline bounds, not
 // the line box, and snapped to the pixel grid so it stays crisp at 1x and 2x.
 static void draw_key(CGContextRef c, CGFloat x, char key) {
-    CGRect box = CGRectMake(x + 0.5, (HEIGHT - SLOT) / 2.0 + 0.5, SLOT - 1, SLOT - 1);
+    CGRect box = CGRectMake(x + 0.5, (HEIGHT - STRIP_SLOT) / 2.0 + 0.5, STRIP_SLOT - 1, STRIP_SLOT - 1);
     CGPathRef path = CGPathCreateWithRoundedRect(box, 4.5, 4.5, NULL);
     CGContextSetLineWidth(c, 1);
     CGContextAddPath(c, path);
@@ -492,7 +479,7 @@ static void draw_key(CGContextRef c, CGFloat x, char key) {
     CFAttributedStringRef str = CFAttributedStringCreate(NULL, text, attrs);
     CTLineRef line = CTLineCreateWithAttributedString(str);
     CGRect b = CTLineGetBoundsWithOptions(line, kCTLineBoundsUseGlyphPathBounds);
-    CGFloat px = x + SLOT / 2.0 - CGRectGetMidX(b), py = HEIGHT / 2.0 - CGRectGetMidY(b);
+    CGFloat px = x + STRIP_SLOT / 2.0 - CGRectGetMidX(b), py = HEIGHT / 2.0 - CGRectGetMidY(b);
     CGContextSetTextPosition(c, round(px * SCALE) / SCALE, round(py * SCALE) / SCALE);
     CTLineDraw(line, c);
     CFRelease(line);
@@ -514,7 +501,7 @@ static void draw_more(CGContextRef c, CGFloat x, int k) {
     CFAttributedStringRef str = CFAttributedStringCreate(NULL, text, attrs);
     CTLineRef line = CTLineCreateWithAttributedString(str);
     CGRect b = CTLineGetBoundsWithOptions(line, kCTLineBoundsUseGlyphPathBounds);
-    CGFloat px = x + SLOT / 2.0 - CGRectGetMidX(b), py = HEIGHT / 2.0 - CGRectGetMidY(b);
+    CGFloat px = x + STRIP_SLOT / 2.0 - CGRectGetMidX(b), py = HEIGHT / 2.0 - CGRectGetMidY(b);
     CGContextSetTextPosition(c, round(px * SCALE) / SCALE, round(py * SCALE) / SCALE);
     CTLineDraw(line, c);
     CFRelease(line);
@@ -538,8 +525,8 @@ static void draw_app(CGContextRef c, CGRect slot, CGImageRef mask, bool focused)
 }
 
 static void render(int ws, const pid_t *pids, const uint32_t *wids, int n, int over, uint32_t front) {
-    int slots = n + (over > 0);
-    int width = (slots + 1) * SLOT + slots * GAP;
+    int slots = strip_slots(n, over);
+    int width = strip_width(slots);
     CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
     CGContextRef c = CGBitmapContextCreate(NULL, width * SCALE, HEIGHT * SCALE, 8, 0, cs,
                                            (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
@@ -551,11 +538,11 @@ static void render(int ws, const pid_t *pids, const uint32_t *wids, int n, int o
     CGContextSetGrayStrokeColor(c, 1, 1);
 
     for (int i = 0; i < n; i++) {
-        CGRect slot = CGRectMake(i * (SLOT + GAP), (HEIGHT - SLOT) / 2.0, SLOT, SLOT);
+        CGRect slot = CGRectMake(i * (STRIP_SLOT + STRIP_GAP), (HEIGHT - STRIP_SLOT) / 2.0, STRIP_SLOT, STRIP_SLOT);
         draw_app(c, slot, mask_for(pids[i]), wids[i] == front);
     }
-    if (over > 0) draw_more(c, n * (SLOT + GAP), over);
-    draw_key(c, slots * (SLOT + GAP), config_key_char(ws - 1));
+    if (over > 0) draw_more(c, n * (STRIP_SLOT + STRIP_GAP), over);
+    draw_key(c, slots * (STRIP_SLOT + STRIP_GAP), config_key_char(ws - 1));
 
     CGImageRef strip = CGBitmapContextCreateImage(c);
     CGContextRelease(c);
