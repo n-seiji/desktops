@@ -6,7 +6,7 @@
 
 // ~/.config/just-desktops/config
 //   border = on|off
-//   switcher = list|square|off   (⌥Tab window switcher; on = list)
+//   switcher = list|square|off   (⌥Tab window switcher; on = list; off = switch at once, no panel)
 //   menubar = on|off      (menu bar item: current desktop and its apps)
 //   keys = 1 2 3 q w e    (digits and letters; the n-th key is Desktop n)
 //   <bundle id> = <desktop number>
@@ -54,7 +54,7 @@ int config_parse_keys(const char *list, int *codes) {
     return n;
 }
 
-// "off" (or false/no) turns it off; "on" and anything unknown give the default list style.
+// "off" (or false/no) is the instant mode without a panel; "on" and anything unknown give the default list style.
 sw_style_t config_parse_switcher(const char *v) {
     if (!strcmp(v, "off") || !strcmp(v, "false") || !strcmp(v, "no")) return SW_OFF;
     if (!strcmp(v, "square")) return SW_SQUARE;

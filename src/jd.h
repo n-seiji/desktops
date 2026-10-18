@@ -11,8 +11,8 @@ void config_load(void);
 int config_assign(const char *bundle_id);
 bool config_border(void);
 typedef enum { SW_OFF, SW_LIST, SW_SQUARE } sw_style_t;
-sw_style_t config_switcher_style(void); // off: ⌥Tab passes through; otherwise it is captured
-sw_style_t config_parse_switcher(const char *v); // "list"/"on", "square", "off"; anything else is list
+sw_style_t config_switcher_style(void); // off: ⌥Tab cycles instantly with no panel
+sw_style_t config_parse_switcher(const char *v); // "list"/"on", "square", "off" (instant, no panel); anything else is list
 bool config_menubar(void);  // the menu bar item is shown
 bool config_parse_on(const char *v);
 int config_workspaces(void); // number of desktops: how many keys are bound
@@ -79,6 +79,7 @@ void wm_switch(int ws);
 void wm_move_focused(int ws);
 int wm_current(void);
 int wm_windows(int dir, sw_entry_t **out, int *sel);
+int wm_window_ids(int dir, uint32_t **out, int *sel); // wm_windows without icons and text; caller frees *out
 void wm_focus_wid(uint32_t wid);
 void wm_restore_all(void);
 

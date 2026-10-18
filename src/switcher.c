@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-// Window switcher panel (hold ⌥, press Tab). The windows, their contexts, the fonts,
+// Window switcher panel (hold ⌥, press Tab; with `switcher = off` no panel, see instant_step). The windows, their contexts, the fonts,
 // the icons and the entries exist only while the panel is open; the animation
 // timer runs only while the highlight is moving.
 //
@@ -282,7 +282,34 @@ static void show(void) {
     for (int i = 0; i < abs(extra); i++) panel_step(extra > 0 ? 1 : -1);
 }
 
+// switcher = off: no panel at all. The first Tab snapshots the window ids (same list and order as the
+// panels) and every Tab focuses the next one at once; the snapshot only lives until ⌥ is let go.
+static uint32_t *snap;
+static int snap_n, snap_at;
+
+static void instant_end(void) {
+    free(snap);
+    snap = NULL;
+    snap_n = 0;
+}
+
+static void instant_step(int dir) {
+    if (!snap) {
+        int sel;
+        snap_n = wm_window_ids(dir, &snap, &sel);
+        snap_at = sel;
+        if (!snap_n) instant_end();
+    } else {
+        snap_at = ((snap_at + dir) % snap_n + snap_n) % snap_n;
+    }
+    if (snap) wm_focus_wid(snap[snap_at]);
+}
+
 void switcher_step(int dir) {
+    if (config_switcher_style() == SW_OFF) {
+        instant_step(dir);
+        return;
+    }
     if (visible) {
         panel_step(dir);
         return;
@@ -301,6 +328,10 @@ void switcher_step(int dir) {
 }
 
 void switcher_commit(void) {
+    if (config_switcher_style() == SW_OFF) {
+        instant_end();
+        return;
+    }
     if (!waiting) {
         visible = false;
         panel_commit();
@@ -315,6 +346,10 @@ void switcher_commit(void) {
 }
 
 void switcher_cancel(void) {
+    if (config_switcher_style() == SW_OFF) {
+        instant_end();
+        return;
+    }
     stop_delay();
     waiting = visible = false;
     panel_cancel();

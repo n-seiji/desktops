@@ -449,6 +449,10 @@ static bool is_shown(CFArrayRef shown, uint32_t wid) {
 // does not show (hidden app, other Space, alpha 0, parked off screen). *out is malloc'd with
 // +1 icon/app/title per entry (title is the row text; the caller releases them); *sel is the window after the
 // focused one (before it for dir < 0).
+static bool switchable(win_t *w, CFArrayRef shown) {
+    return w->ws == cur && !w->hidden && !get_bool(w->el, kAXMinimizedAttribute) && is_shown(shown, w->wid);
+}
+
 int wm_windows(int dir, sw_entry_t **out, int *sel) {
     sw_entry_t *list = malloc(sizeof *list * (nwins ? nwins : 1));
     if (!list) return 0;
@@ -457,7 +461,7 @@ int wm_windows(int dir, sw_entry_t **out, int *sel) {
     CFArrayRef shown = shown_windows();
     for (int i = 0; i < nwins; i++) {
         win_t *w = &wins[i];
-        if (w->ws != cur || w->hidden || get_bool(w->el, kAXMinimizedAttribute) || !is_shown(shown, w->wid)) continue;
+        if (!switchable(w, shown)) continue;
         if (w == f) at = n;
         CFStringRef app = apps_name(w->pid), raw = title_of(w->el);
         list[n++] = (sw_entry_t){w->wid, w->pid, apps_icon(w->pid, 56), app, raw ? title_clean(raw, app) : NULL};
@@ -467,6 +471,25 @@ int wm_windows(int dir, sw_entry_t **out, int *sel) {
     label_entries(list, n);
     *sel = n ? (at < 0 ? (dir > 0 ? 0 : n - 1) : ((at + dir) % n + n) % n) : 0;
     *out = list;
+    return n;
+}
+
+// The same windows in the same order as wm_windows, as bare ids: no icons, names or titles.
+// *out is malloc'd; *sel as in wm_windows.
+int wm_window_ids(int dir, uint32_t **out, int *sel) {
+    uint32_t *ids = malloc(sizeof *ids * (nwins ? nwins : 1));
+    if (!ids) return 0;
+    win_t *f = focused();
+    int n = 0, at = -1;
+    CFArrayRef shown = shown_windows();
+    for (int i = 0; i < nwins; i++) {
+        if (!switchable(&wins[i], shown)) continue;
+        if (&wins[i] == f) at = n;
+        ids[n++] = wins[i].wid;
+    }
+    if (shown) CFRelease(shown);
+    *sel = n ? (at < 0 ? (dir > 0 ? 0 : n - 1) : ((at + dir) % n + n) % n) : 0;
+    *out = ids;
     return n;
 }
 

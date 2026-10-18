@@ -3,7 +3,7 @@
 # Draw the border around the focused window (on|off)
 border = on
 
-# ⌥Tab window switcher: list | square | off (on = list). When off, ⌥Tab is not captured and passes through to apps.
+# ⌥Tab window switcher: list | square | off (on = list). off draws no panel: each Tab focuses the next window at once.
 # square shows a screenshot of each window and asks for Screen Recording permission at launch; until it is
 # granted it shows the app icon. The panel appears after ⌥ has been held about 150ms; a quick tap never draws it. After a rebuild macOS asks again (the grant follows the binary's code hash).
 switcher = list

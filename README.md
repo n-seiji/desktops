@@ -28,9 +28,10 @@ If you want tiling, layouts, colors or more options, use those projects. just-de
 
 - Each switcher row shows the app name when the app has one window. With several, rows show the window titles ("App 2" when a title is empty or repeated).
 - The switcher panel exists only while ⌥ is held after a Tab, and it appears only once ⌥ has been held for about 150ms. A quick tap of ⌥Tab switches to the next window without ever drawing the panel (no window or buffer is created); extra Tabs, Esc and releasing ⌥ inside that time work the same. Nothing is held in memory while it is closed.
-- ⌥Tab and ⌥⇧Tab are captured by just-desktops unless `switcher = off`, so apps never see those keys then. With `switcher = off` they pass through to apps and no switcher code runs. `switcher = on` still means `list`; any other unknown value (`peek`, which no longer exists, included) also gives `list`.
+- ⌥Tab and ⌥⇧Tab are always captured by just-desktops, so apps never see those keys. `switcher = on` means `list`; any other unknown value (`peek`, which no longer exists, included) also gives `list`.
 - `switcher` picks the style (the keys behave the same in all of them):
   - `list` (default): a panel with one row per window.
+  - `off`: the instant mode, with no panel at all. The first ⌥Tab takes the same window list the panels use and focuses the next window at once; every further Tab while ⌥ is held steps through that same list in order (⌥⇧Tab goes backwards), so cycling does not bounce between two windows. Releasing ⌥ just ends the cycle. Nothing is drawn or allocated for it and the idle footprint stays as it is.
   - `square`: a wide glass panel (640x420pt) in the middle of the screen with one window shown large (its screenshot, or the app icon until there is one), a `k / n` counter and a row of dots. No window name is shown. ⌥Tab slides the next window in from the right, ⌥⇧Tab from the left. A tall or narrow window is fitted to the picture box and centred, not stretched.
 - `square` shows a live screenshot of each window, which needs Screen Recording permission. just-desktops asks for it once at launch (and only for this style; `list` and `off` never ask). Until it is granted the cards show the app icon instead, and everything else works the same. Only the selected window and the one it slides in from are captured, as you move, and the images are dropped as soon as they are drawn. The grant of an ad-hoc signed binary is tied to its code hash, so after a rebuild (`mise run build`, or upgrading through mise) macOS asks again and you grant it again.
 - Memory of `square` (measured with `footprint`, while ⌥ is held, with screenshots): `list` peaks around 16MB and `square` about 25MB. The cards are drawn at 1x, so their screenshots are a little soft; at 2x the wide cards would add about 15MB. All of it is released when ⌥ is let go. The idle footprint (about 8MB) does not depend on the style; ScreenCaptureKit is linked weakly and loaded only when you choose `square`.
@@ -100,7 +101,7 @@ Pushing a `v*` tag makes GitHub Actions publish arm64 and x86_64 binaries to Rel
 
 - Windows are parked on the main display only; multiple displays are not supported yet.
 - After a crash, parked windows stay in the bottom-right corner until the next launch, which moves them back on screen.
-- ⌥Tab, ⌥⇧Tab and the ⌥ / ⌥⇧ modifiers are fixed (`switcher` only picks the style or turns it off); only the desktop keys are configurable.
+- ⌥Tab, ⌥⇧Tab and the ⌥ / ⌥⇧ modifiers are fixed (`switcher` only picks the style); only the desktop keys are configurable.
 
 ## License
 
