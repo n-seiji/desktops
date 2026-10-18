@@ -32,6 +32,14 @@ static void check_switcher(const char *v, sw_style_t want) {
     }
 }
 
+static void check_modifier(const char *v, CGEventFlags want) {
+    CGEventFlags got = config_parse_modifier(v);
+    if (got != want) {
+        printf("FAIL config_parse_modifier(\"%s\") = %llx; want %llx\n", v, (unsigned long long)got, (unsigned long long)want);
+        failed++;
+    }
+}
+
 static void check_key_char(int i, char want) {
     char got = config_key_char(i);
     if (got != want) {
@@ -48,6 +56,10 @@ static void check_no_preview(const char *id, bool want) {
 }
 
 int main(void) {
+    if (config_modifier() != kCGEventFlagMaskAlternate) {
+        printf("FAIL default config_modifier() = %llx; want option\n", (unsigned long long)config_modifier());
+        failed++;
+    }
     check_no_preview("com.1password.1password", true);
     check_no_preview("COM.Apple.Passwords", true);
     check_no_preview("com.apple.keychainaccess", true);
@@ -66,7 +78,7 @@ int main(void) {
     snprintf(path, sizeof path, "%s/.config/just-desktops/config", dir);
     FILE *f = fopen(path, "w");
     if (!f) return 1;
-    fputs("no_preview = com.example.vault  com.example.notes\nno_preview=Com.Example.Other\ncom.example.pinned = 2\n", f);
+    fputs("no_preview = com.example.vault  com.example.notes\nno_preview=Com.Example.Other\nmodifier = CMD\ncom.example.pinned = 2\n", f);
     fclose(f);
     setenv("HOME", dir, 1);
     config_load();
@@ -76,6 +88,10 @@ int main(void) {
     snprintf(path, sizeof path, "%s/.config", dir);
     rmdir(path);
     rmdir(dir);
+    if (config_modifier() != kCGEventFlagMaskCommand) {
+        printf("FAIL config_modifier() after \"modifier = CMD\" = %llx; want command\n", (unsigned long long)config_modifier());
+        failed++;
+    }
     check_no_preview("com.example.vault", true);
     check_no_preview("com.example.notes", true);
     check_no_preview("com.example.other", true);
@@ -91,6 +107,19 @@ int main(void) {
     check_key_char(2, '3');
     check_key_char(3, 'Q');
     check_key_char(5, 'E');
+    check_modifier("opt", kCGEventFlagMaskAlternate);
+    check_modifier("option", kCGEventFlagMaskAlternate);
+    check_modifier("alt", kCGEventFlagMaskAlternate);
+    check_modifier("OPT", kCGEventFlagMaskAlternate);
+    check_modifier("cmd", kCGEventFlagMaskCommand);
+    check_modifier("command", kCGEventFlagMaskCommand);
+    check_modifier("Command", kCGEventFlagMaskCommand);
+    check_modifier("ctrl", kCGEventFlagMaskControl);
+    check_modifier("control", kCGEventFlagMaskControl);
+    check_modifier("CTRL", kCGEventFlagMaskControl);
+    check_modifier("hyper", kCGEventFlagMaskAlternate);
+    check_modifier("garbage", kCGEventFlagMaskAlternate);
+    check_modifier("", kCGEventFlagMaskAlternate);
     check_on("on", true);
     check_on("true", true);
     check_on("yes", true);

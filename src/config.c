@@ -8,6 +8,7 @@
 // ~/.config/just-desktops/config
 //   border = on|off
 //   switcher = list|square|off   (⌥Tab window switcher; on = list; off = switch at once, no panel)
+//   modifier = opt|cmd|ctrl   (base modifier of every hotkey, default opt; aliases option, alt, command, control)
 //   menubar = on|off      (menu bar item: current desktop and its apps)
 //   keys = 1 2 3 q w e    (digits and letters; the n-th key is Desktop n)
 //   no_preview = <bundle id> [<bundle id> ...]   (apps the square switcher never screenshots; repeatable)
@@ -23,6 +24,7 @@ static int nextra;
 static bool border = true;
 static sw_style_t switcher = SW_LIST;
 static bool menubar = false;
+static CGEventFlags modifier = kCGEventFlagMaskAlternate;
 static int keys[JD_MAX_WS] = {0x12, 0x13, 0x14, 0x0C, 0x0D, 0x0E}; // 1 2 3 q w e
 static int nkeys = 6;
 
@@ -76,6 +78,13 @@ sw_style_t config_parse_switcher(const char *v) {
     return SW_LIST;
 }
 
+// Case-insensitive. Unknown values give option.
+CGEventFlags config_parse_modifier(const char *v) {
+    if (!strcasecmp(v, "cmd") || !strcasecmp(v, "command")) return kCGEventFlagMaskCommand;
+    if (!strcasecmp(v, "ctrl") || !strcasecmp(v, "control")) return kCGEventFlagMaskControl;
+    return kCGEventFlagMaskAlternate;
+}
+
 void config_load(void) {
     const char *home = getenv("HOME");
     char path[1024];
@@ -98,6 +107,10 @@ void config_load(void) {
         }
         if (!strcmp(k, "switcher")) {
             switcher = config_parse_switcher(v);
+            continue;
+        }
+        if (!strcmp(k, "modifier")) {
+            modifier = config_parse_modifier(v);
             continue;
         }
         if (!strcmp(k, "menubar")) {
@@ -154,6 +167,8 @@ bool config_border(void) { return border; }
 sw_style_t config_switcher_style(void) { return switcher; }
 
 bool config_menubar(void) { return menubar; }
+
+CGEventFlags config_modifier(void) { return modifier; }
 
 int config_workspaces(void) { return nkeys; }
 

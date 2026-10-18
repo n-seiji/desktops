@@ -14,6 +14,8 @@ bool config_border(void);
 typedef enum { SW_OFF, SW_LIST, SW_SQUARE } sw_style_t;
 sw_style_t config_switcher_style(void); // off: ⌥Tab cycles instantly with no panel
 sw_style_t config_parse_switcher(const char *v); // "list"/"on", "square", "off" (instant, no panel); anything else is list
+CGEventFlags config_modifier(void); // base modifier flag of every hotkey: option (default), command or control
+CGEventFlags config_parse_modifier(const char *v); // opt|option|alt, cmd|command, ctrl|control (any case); anything else is option
 bool config_menubar(void);  // the menu bar item is shown
 bool config_parse_on(const char *v);
 int config_workspaces(void); // number of desktops: how many keys are bound

@@ -1,16 +1,18 @@
 #include "jd.h"
 #include <dispatch/dispatch.h>
 
-// Fixed hotkeys:
+// Hotkeys, with ⌥ standing for the base modifier (`modifier` in config: opt, cmd or ctrl; default opt):
 //   ⌥<key>   switch to the desktop bound to the key (`keys` in config, default 1 2 3 q w e)
 //   ⌥⇧<key>  move focused window to that desktop
 //   ⌥Tab / ⌥⇧Tab  open the window switcher / move the selection; releasing ⌥ commits, Esc cancels
 //                 (`switcher = off`: no panel, each Tab focuses the next window at once). ⌥<key> while it is open closes it first.
+// Only the base modifier (plus Shift) may be down; any other extra modifier lets the key through.
 
 #define KEY_TAB 0x30
 #define KEY_ESC 0x35
 
 static CFMachPortRef tap;
+static CGEventFlags base; // the configured base modifier
 static bool armed; // switcher open (or about to be): ⌥ is held since a Tab
 // A held Tab repeats at the OS rate (~30ms), faster than a step is worth and than the focus calls of
 // `switcher = off` complete, so the selection would race around and keep moving after the release.
@@ -29,11 +31,11 @@ static CGEventRef on_key(CGEventTapProxy proxy, CGEventType type, CGEventRef ev,
     if (type == kCGEventTapDisabledByTimeout || type == kCGEventTapDisabledByUserInput) {
         CGEventTapEnable(tap, true);
         // The ⌥ release may have been missed while the tap was off.
-        if (armed && !(CGEventSourceFlagsState(kCGEventSourceStateCombinedSessionState) & kCGEventFlagMaskAlternate)) commit();
+        if (armed && !(CGEventSourceFlagsState(kCGEventSourceStateCombinedSessionState) & base)) commit();
         return ev;
     }
     if (type == kCGEventFlagsChanged) {
-        if (armed && !(CGEventGetFlags(ev) & kCGEventFlagMaskAlternate)) commit();
+        if (armed && !(CGEventGetFlags(ev) & base)) commit();
         return ev;
     }
     if (type != kCGEventKeyDown) return ev;
@@ -45,8 +47,8 @@ static CGEventRef on_key(CGEventTapProxy proxy, CGEventType type, CGEventRef ev,
 
     CGEventFlags mods = CGEventGetFlags(ev) & (kCGEventFlagMaskAlternate | kCGEventFlagMaskShift |
                                               kCGEventFlagMaskCommand | kCGEventFlagMaskControl);
-    bool alt = mods == kCGEventFlagMaskAlternate;
-    bool alt_shift = mods == (kCGEventFlagMaskAlternate | kCGEventFlagMaskShift);
+    bool alt = mods == base;
+    bool alt_shift = mods == (base | kCGEventFlagMaskShift);
     if (!alt && !alt_shift) return ev;
 
     int64_t key = CGEventGetIntegerValueField(ev, kCGKeyboardEventKeycode);
@@ -82,6 +84,7 @@ static CGEventRef on_key(CGEventTapProxy proxy, CGEventType type, CGEventRef ev,
 }
 
 bool hotkey_init(void) {
+    base = config_modifier();
     tap = CGEventTapCreate(kCGSessionEventTap, kCGHeadInsertEventTap, kCGEventTapOptionDefault,
                            CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(kCGEventFlagsChanged), on_key, NULL);
     if (!tap) return false;

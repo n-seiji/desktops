@@ -26,6 +26,8 @@ If you want tiling, layouts, colors or more options, use those projects. just-de
 | ⌥⇧ + the same key | Move the focused window to that desktop |
 | ⌥Tab / ⌥⇧Tab (hold ⌥) | Open a list of the windows in this workspace and move the selection forward / backward (wraps around). Release ⌥ to switch to the selected window; Esc cancels |
 
+- ⌥ in this README is the base modifier: Option by default. Set `modifier = cmd` or `modifier = ctrl` in the config to use Command or Control instead (`opt` is the default; `option`, `alt`, `command` and `control` are accepted too, in any case; an unknown value gives Option). Every hotkey follows it: the desktop keys, moving a window, the switcher, releasing it to commit, Esc and the desktop keys while the panel is open. The shift variants stay. A key fires only when exactly the base modifier (plus Shift) is down; with `modifier = cmd`, Option or Control held in addition lets the key through untouched. There is no Hyper key.
+- Command and Control collide with system shortcuts, and just-desktops swallows these keys system wide while it runs. With `cmd`, Cmd-Tab (the macOS app switcher) and Cmd-digit (app shortcuts such as browser tab 1 to 9) stop working. With `ctrl`, Ctrl-Tab and Ctrl-digit (browser and terminal tab shortcuts, and Mission Control's desktop shortcuts if you enabled them) stop working. just-desktops does not work around this; choose a modifier whose combinations you do not need.
 - Each switcher row shows the app name when the app has one window. With several, rows show the window titles ("App 2" when a title is empty or repeated).
 - The switcher panel exists only while ⌥ is held after a Tab, and it appears only once ⌥ has been held for about 150ms. A quick tap of ⌥Tab switches to the next window without ever drawing the panel (no window or buffer is created); extra Tabs, Esc and releasing ⌥ inside that time work the same. Nothing is held in memory while it is closed.
 - ⌥Tab and ⌥⇧Tab are always captured by just-desktops, so apps never see those keys. `switcher = on` means `list`; any other unknown value (`peek`, which no longer exists, included) also gives `list`.
@@ -78,6 +80,7 @@ border = on
 switcher = list
 menubar = off
 keys = 1 2 3 q w e
+modifier = opt
 com.apple.Safari = 1
 com.googlecode.iterm2 = 2
 ```
@@ -101,7 +104,7 @@ Pushing a `v*` tag makes GitHub Actions publish arm64 and x86_64 binaries to Rel
 
 - Windows are parked on the main display only; multiple displays are not supported yet.
 - After a crash, parked windows stay in the bottom-right corner until the next launch, which moves them back on screen.
-- ⌥Tab, ⌥⇧Tab and the ⌥ / ⌥⇧ modifiers are fixed (`switcher` only picks the style); only the desktop keys are configurable.
+- Tab, Shift and Esc are fixed (`switcher` only picks the style). Only the desktop keys and the base modifier (Option, Command or Control) are configurable.
 
 ## License
 

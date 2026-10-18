@@ -1,5 +1,9 @@
 # ~/.config/just-desktops/config
 
+# Base modifier of every hotkey (written ⌥ in this file): opt (default) | cmd | ctrl. option, alt, command and control also work.
+# Command and Control take over cmd-Tab / cmd-digit and ctrl-Tab / ctrl-digit system wide while just-desktops runs.
+modifier = opt
+
 # Draw the border around the focused window (on|off)
 border = on
 
