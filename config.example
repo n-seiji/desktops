@@ -1,13 +1,32 @@
 # ~/.config/just-desktops/config
 
+# Base modifier of every hotkey (written ⌥ in this file): opt (default) | cmd | ctrl. option, alt, command and control also work.
+# Command and Control take over cmd-Tab / cmd-digit and ctrl-Tab / ctrl-digit system wide while just-desktops runs.
+modifier = opt
+
 # Draw the border around the focused window (on|off)
 border = on
+
+# ⌥Tab window switcher: list | square | off (on = list). off draws no panel: each Tab focuses the next window at once.
+# square shows a screenshot of each window and asks for Screen Recording permission at launch; until it is
+# granted it shows the app icon. The panel appears after ⌥ has been held about 150ms; a quick tap never draws it. After a rebuild macOS asks again (the grant follows the binary's code hash).
+switcher = list
+
+# Apps whose windows the square switcher never screenshots (they show the app icon instead). Password managers
+# are built in (1Password, Bitwarden, KeePassXC, Apple Passwords, Keychain Access and others); other apps (for example RoboForm or Secrets)
+# are not, so list their bundle ids here, space separated. The line can repeat.
+# no_preview = com.example.vault com.example.notes
+
+# Menu bar item (on|off): the current desktop's key and the apps on it. Costs about 5MB of memory when on
+menubar = off
 
 # Keys that switch desktops with ⌥ (and move the focused window with ⌥⇧).
 # The n-th key is Desktop n. Digits and letters, at most 10. Default: 1 2 3 q w e
 keys = 1 2 3 q w e
 
 # Pin apps to a desktop: <bundle id> = <desktop number>
+# A pin places a window on that desktop when it first appears without being focused (an existing window at launch, or one opened in the background).
+# A window that is focused when it appears, or focused later, is pulled to the current desktop.
 # Find a bundle id with: osascript -e 'id of app "Safari"'
 com.apple.Safari = 1
 com.googlecode.iterm2 = 2

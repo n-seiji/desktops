@@ -11,6 +11,7 @@ extern CGError SLSSetWindowShape(int cid, uint32_t wid, float x_offset, float y_
 extern CGError SLSSetWindowResolution(int cid, uint32_t wid, double resolution);
 extern CGError SLSSetWindowOpacity(int cid, uint32_t wid, bool is_opaque);
 extern CGError SLSReleaseWindow(int cid, uint32_t wid);
+extern CGError SLSSetWindowTransform(int cid, uint32_t wid, CGAffineTransform t);
 extern CGError SLSSetWindowAlpha(int cid, uint32_t wid, float alpha);
 extern CGError SLSSetWindowLevel(int cid, uint32_t wid, int level);
 extern CGError SLSGetWindowLevel(int cid, uint32_t wid, int *level);
@@ -21,3 +22,14 @@ extern CGError SLSReenableUpdate(int cid);
 extern CGContextRef SLWindowContextCreate(int cid, uint32_t wid, CFDictionaryRef options);
 extern CGError CGSNewRegionWithRect(CGRect *rect, CFTypeRef *region);
 extern CGError SLSSetWindowBackgroundBlurRadius(int cid, uint32_t wid, int radius);
+extern CGError SLSGetWindowBounds(int cid, uint32_t wid, CGRect *frame);
+extern CGError SLSRegisterNotifyProc(void *handler, uint32_t event, void *context);
+extern CGError SLSRequestNotificationsForWindows(int cid, uint32_t *window_list, int window_count);
+extern CGError SLSGetEventPort(int cid, mach_port_t *port);
+extern CGEventRef SLEventCreateNextEvent(int cid);
+extern void _CFMachPortSetOptions(CFMachPortRef port, int options);
+extern CFTypeRef SLSWindowQueryWindows(int cid, CFArrayRef windows, int count);
+extern CFTypeRef SLSWindowQueryResultCopyWindows(CFTypeRef query);
+extern bool SLSWindowIteratorAdvance(CFTypeRef iterator);
+// SLSWindowIteratorGetCornerRadii (four CFNumbers, in points) is looked up at run time: older macOS does not export it.
+typedef CFArrayRef (*corner_radii_fn)(CFTypeRef iterator);

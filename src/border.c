@@ -1,5 +1,6 @@
 #include "jd.h"
 #include "extern.h"
+#include <dlfcn.h>
 #include <math.h>
 
 // A thin white ring drawn directly through SkyLight (no AppKit), floating
@@ -10,9 +11,8 @@
 
 #define RING_WIDTH 1.5
 #define RING_GAP 3.0
-#define WINDOW_RADIUS 16.0 // typical macOS window corner radius (VS Code, Chrome); apps vary
+#define DEFAULT_RADIUS 16.0 // used when WindowServer does not report the window's corner radius
 #define RING_OUTSET (RING_GAP + RING_WIDTH) // window frame to the ring's outer edge
-#define EDGE_THICKNESS (WINDOW_RADIUS + RING_OUTSET) // top/bottom: tall enough to hold the corner arcs
 #define SIDE_THICKNESS ceil(RING_WIDTH) // left/right only hold the straight part of the ring
 
 #define RIM_FADE 0.18 // fraction of the ring's height the easing takes
@@ -26,6 +26,9 @@ static const palette_t DARK = {1, 0.9, 0.6}, LIGHT = {0, 0.75, 0.55};
 
 enum { TOP, BOTTOM, LEFT, RIGHT, NEDGES };
 
+// WindowServer event numbers (the same ones JankyBorders and yabai register for).
+enum { EVENT_WINDOW_MOVE = 806, EVENT_WINDOW_RESIZE = 807 };
+
 static struct {
     uint32_t wid;
     CGContextRef ctx;
@@ -36,12 +39,44 @@ static bool shown;
 static uint32_t last_target;
 static CGRect last_outer;
 static const palette_t *pal = &DARK;
+static CGFloat radius = DEFAULT_RADIUS; // the followed window's corner radius
+
+// Top and bottom are tall enough to hold the corner arcs.
+static CGFloat edge_thickness(void) { return radius + RING_OUTSET; }
+
+// The corner radius WindowServer applies to the window; it is 16 for most, 20 to 26 for newer styles.
+static CGFloat window_radius(uint32_t wid) {
+    CGFloat r = DEFAULT_RADIUS;
+    static corner_radii_fn get_radii;
+    static bool looked_up;
+    if (!looked_up) {
+        get_radii = (corner_radii_fn)dlsym(RTLD_DEFAULT, "SLSWindowIteratorGetCornerRadii");
+        looked_up = true;
+    }
+    if (!get_radii) return r;
+    int n = (int)wid;
+    CFNumberRef num = CFNumberCreate(NULL, kCFNumberIntType, &n);
+    CFArrayRef ids = CFArrayCreate(NULL, (const void **)&num, 1, &kCFTypeArrayCallBacks);
+    CFTypeRef query = SLSWindowQueryWindows(cid, ids, 1);
+    CFTypeRef it = query ? SLSWindowQueryResultCopyWindows(query) : NULL;
+    if (it && SLSWindowIteratorAdvance(it)) {
+        CFArrayRef radii = get_radii(it);
+        CGFloat v;
+        if (radii && CFArrayGetCount(radii) > 0 && CFNumberGetValue(CFArrayGetValueAtIndex(radii, 0), kCFNumberCGFloatType, &v))
+            r = fmin(fmax(v, 0), 64);
+    }
+    if (it) CFRelease(it);
+    if (query) CFRelease(query);
+    CFRelease(ids);
+    CFRelease(num);
+    return r;
+}
 
 // Window rects are snapped out to whole points (the ring itself sits at
 // fractional offsets inside them); a window at a half-point origin leaves an
 // unpainted row along one edge.
 static CGRect edge_rect(int e, CGRect o) {
-    CGFloat t = EDGE_THICKNESS, s = SIDE_THICKNESS;
+    CGFloat t = edge_thickness(), s = SIDE_THICKNESS;
     CGRect r;
     switch (e) {
     case TOP: r = CGRectMake(o.origin.x, o.origin.y, o.size.width, t); break;
@@ -53,6 +88,8 @@ static CGRect edge_rect(int e, CGRect o) {
 }
 
 static void appearance_changed(CFNotificationCenterRef, void *, CFNotificationName, const void *, CFDictionaryRef);
+static void window_changed(uint32_t event, uint32_t *wid, size_t len, void *ctx);
+static void drain_events(CFMachPortRef port, void *msg, CFIndex size, void *info);
 
 void border_init(void) {
     cid = SLSMainConnectionID();
@@ -60,6 +97,18 @@ void border_init(void) {
     CFNotificationCenterAddObserver(CFNotificationCenterGetDistributedCenter(), NULL, appearance_changed,
                                     CFSTR("AppleInterfaceThemeChangedNotification"), NULL,
                                     CFNotificationSuspensionBehaviorDeliverImmediately);
+    SLSRegisterNotifyProc(window_changed, EVENT_WINDOW_MOVE, NULL);
+    SLSRegisterNotifyProc(window_changed, EVENT_WINDOW_RESIZE, NULL);
+    // The notify procs run while the connection's event queue is drained.
+    mach_port_t port;
+    if (SLSGetEventPort(cid, &port) == kCGErrorSuccess) {
+        CFMachPortRef cf_port = CFMachPortCreateWithPort(NULL, port, drain_events, NULL, false);
+        _CFMachPortSetOptions(cf_port, 0x40);
+        CFRunLoopSourceRef src = CFMachPortCreateRunLoopSource(NULL, cf_port, 0);
+        CFRunLoopAddSource(CFRunLoopGetMain(), src, kCFRunLoopDefaultMode);
+        CFRelease(src);
+        CFRelease(cf_port);
+    }
     for (int e = 0; e < NEDGES; e++) {
         CGRect r = {{0, 0}, {1, 1}};
         CFTypeRef region = NULL;
@@ -95,12 +144,12 @@ static void draw_edge(int e, CGRect outer) {
     CGContextTranslateCTM(ctx, 0, er.size.height); // SkyLight contexts are y-up, frames are y-down
     CGContextScaleCTM(ctx, 1, -1);
     CGRect path_rect = CGRectInset((CGRect){{0, 0}, outer.size}, RING_WIDTH / 2, RING_WIDTH / 2);
-    CGFloat radius = WINDOW_RADIUS + RING_GAP + RING_WIDTH / 2;
+    CGFloat ring_r = radius + RING_GAP + RING_WIDTH / 2;
     CGFloat max_r = fmin(path_rect.size.width, path_rect.size.height) / 2;
-    if (radius > max_r) radius = max_r;
+    if (ring_r > max_r) ring_r = max_r;
     CGFloat ox = outer.origin.x - er.origin.x, oy = outer.origin.y - er.origin.y;
     CGAffineTransform to_local = CGAffineTransformMakeTranslation(ox, oy);
-    CGPathRef path = CGPathCreateWithRoundedRect(path_rect, radius, radius, &to_local);
+    CGPathRef path = CGPathCreateWithRoundedRect(path_rect, ring_r, ring_r, &to_local);
     CGContextAddPath(ctx, path);
     CGContextSetLineWidth(ctx, RING_WIDTH);
     CGContextReplacePathWithStrokedPath(ctx);
@@ -145,16 +194,18 @@ void border_show(CGRect frame, uint32_t target_wid) {
     CGDirectDisplayID d;
     uint32_t n = 0;
     if (CGGetDisplaysWithRect(frame, 1, &d, &n) == kCGErrorSuccess && n) outer = CGRectIntersection(outer, CGDisplayBounds(d));
-    if (outer.size.width < 2 * EDGE_THICKNESS || outer.size.height < 2 * EDGE_THICKNESS) {
+    bool same = shown && target_wid == last_target;
+    bool resized = !same || !CGSizeEqualToSize(outer.size, last_outer.size);
+    if (!same) radius = window_radius(target_wid);
+    if (outer.size.width < 2 * edge_thickness() || outer.size.height < 2 * edge_thickness()) {
         border_hide();
         return;
     }
 
-    bool same = shown && target_wid == last_target;
     if (same && CGRectEqualToRect(outer, last_outer)) return;
 
     SLSDisableUpdate(cid);
-    if (same && CGSizeEqualToSize(outer.size, last_outer.size)) { // dragged: only the position changed
+    if (!resized) { // dragged: only the position changed
         for (int e = 0; e < NEDGES; e++) {
             CGPoint o = edge_rect(e, outer).origin;
             SLSMoveWindow(cid, edges[e].wid, &o);
@@ -163,6 +214,7 @@ void border_show(CGRect frame, uint32_t target_wid) {
         for (int e = 0; e < NEDGES; e++) draw_edge(e, outer);
     }
     if (!same) {
+        SLSRequestNotificationsForWindows(cid, &target_wid, 1); // move / resize events for this window only
         int level = 0;
         SLSGetWindowLevel(cid, target_wid, &level);
         for (int e = 0; e < NEDGES; e++) {
@@ -180,4 +232,18 @@ void border_hide(void) {
     if (!shown) return;
     for (int e = 0; e < NEDGES; e++) SLSOrderWindow(cid, edges[e].wid, 0, 0); // 0 = out
     shown = false;
+}
+
+static void drain_events(CFMachPortRef port __unused, void *msg __unused, CFIndex size __unused, void *info __unused) {
+    CGEventRef ev;
+    while ((ev = SLEventCreateNextEvent(cid))) CFRelease(ev);
+}
+
+// WindowServer reports the followed window's moves and resizes as they happen, ahead of
+// the Accessibility notifications, which arrive late and coalesced.
+static void window_changed(uint32_t event __unused, uint32_t *wid, size_t len, void *ctx __unused) {
+    if (!shown || len < sizeof *wid || *wid != last_target) return;
+    CGRect frame;
+    if (SLSGetWindowBounds(cid, *wid, &frame) != kCGErrorSuccess) return;
+    border_show(frame, *wid);
 }
