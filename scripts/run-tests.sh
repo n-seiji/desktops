@@ -22,3 +22,5 @@ run config_write_test src/config_write.c
 run select_test src/select.c
 run keyrules_test src/keyrules.c
 run strip_test src/strip.c
+run order_test src/order.c
+run shown_test src/shown.c -framework ApplicationServices
