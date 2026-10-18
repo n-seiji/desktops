@@ -20,12 +20,32 @@ sw_style_t config_switcher_style(void); // off: ⌥Tab cycles instantly with no 
 sw_style_t config_parse_switcher(const char *v); // "list"/"on", "square", "off" (instant, no panel); anything else is list
 CGEventFlags config_modifier(void); // base modifier flag of every hotkey: option (default), command or control
 CGEventFlags config_parse_modifier(const char *v); // opt|option|alt, cmd|command, ctrl|control (any case); anything else is option
-bool config_menubar(void);  // the menu bar item is shown
+typedef enum { MB_OFF, MB_STRIP, MB_ICON } menubar_mode_t;
+menubar_mode_t config_menubar(void); // strip: window glyphs; icon: only the app glyph; off: no item
+menubar_mode_t config_parse_menubar(const char *v); // "on"/"strip", "icon"; anything else is off
+void config_set_app_mode(bool app); // before config_load: the app defaults to strip and never has no item
 bool config_parse_on(const char *v);
 int config_workspaces(void); // number of desktops: how many keys are bound
 int config_key(int i);       // virtual keycode of desktop i + 1
 char config_key_char(int i); // that key as an uppercase character
 int config_parse_keys(const char *list, int *codes);
+
+// config_write.c
+bool config_path(char *buf, size_t n);  // ~/.config/just-desktops/config
+const char *config_sample(void);        // the commented template written for a new file
+char *config_set(const char *text, const char *key, const char *value); // text with key set; caller frees
+int config_write_key(const char *path, const char *key, const char *value); // 0, or -1 with errno
+int config_ensure_file(const char *path); // creates the file (and directories) from the sample if missing
+
+// main.m and app.m: the .app bundle
+bool jd_app_mode(void);   // running as dev.n-seiji.just-desktops.app
+void jd_restart(void);    // put every parked window back and exec this executable again
+void app_wait_accessibility(void); // first-run panel; returns once Accessibility is granted
+void app_set(const char *key, const char *value); // write one config key, then jd_restart
+void app_open_config(void);
+int app_login_state(void); // 0 off, 1 on, 2 needs approval in System Settings
+void app_toggle_login(void);
+void app_open_about(void);
 
 // appearance.c
 bool appearance_dark(void); // the system is in Dark mode
@@ -62,8 +82,8 @@ void thumb_capture(uint32_t wid, void (^done)(CGImageRef img));
 void thumb_end(void);            // the switcher closed: drop everything held
 
 // menubar.m
-void menubar_init(void);
-bool menubar_ready(void); // menubar_init has run: the item exists
+void menubar_init(menubar_mode_t mode);
+bool menubar_ready(void); // the glyph strip is shown (menubar_init ran in strip mode)
 // The current desktop ws, the n pids of the apps on it in switcher order, and the focused pid.
 // Redraws only when one of them changed.
 void menubar_update(int ws, const pid_t *pids, const uint32_t *wids, int n, int over, uint32_t over_hash, uint32_t front);
