@@ -18,6 +18,7 @@ typedef struct {
     bool hidden;
     double shown_at; // when show() last unparked it
     bool was_listed; // WindowServer listed it the last time we looked
+    bool minimized;  // kept from the (de)miniaturize notifications: asking a hung app costs a timeout per window
 } win_t;
 
 typedef struct {
@@ -47,7 +48,7 @@ static AXUIElementRef sys;
 #define FRESH_S 0.3 // WindowServer takes about this long to list windows we just unparked
 
 static void ax_cb(AXObserverRef obs, AXUIElementRef el, CFStringRef n, void *ctx);
-static void refresh_menubar(void);
+static void refresh_menubar(win_t *f);
 
 // ---- AX helpers ----
 
@@ -169,7 +170,8 @@ static win_t *track(app_t *a, AXUIElementRef el) {
         capwins = cap;
     }
     w = &wins[nwins++];
-    *w = (win_t){(AXUIElementRef)CFRetain(el), a->pid, wid, a->assign ? a->assign : cur, {0, 0}, false, 0, false};
+    *w = (win_t){(AXUIElementRef)CFRetain(el), a->pid, wid, a->assign ? a->assign : cur, {0, 0}, false, 0, false,
+                 get_bool(el, kAXMinimizedAttribute)};
 
     // A window left in the corner by a previous crash: bring it back.
     CGPoint p;
@@ -211,19 +213,26 @@ static win_t *focused(void) {
     return w;
 }
 
-static void refresh_border(void) {
+// f is the focused window, looked up once by the caller: each lookup is a round trip to the app.
+static void refresh_border(win_t *w) {
     if (!border_on) return;
-    win_t *w = focused();
     CGPoint p;
     CGSize s;
     if (!w || w->hidden || w->ws != cur ||
-        get_bool(w->el, kAXMinimizedAttribute) || get_bool(w->el, CFSTR("AXFullScreen")) ||
+        w->minimized || get_bool(w->el, CFSTR("AXFullScreen")) ||
         !get_value(w->el, kAXPositionAttribute, kAXValueTypeCGPoint, &p) ||
         !get_value(w->el, kAXSizeAttribute, kAXValueTypeCGSize, &s)) {
         border_hide();
         return;
     }
     border_show((CGRect){p, s}, w->wid);
+}
+
+static void refresh_ui(void) {
+    if (!border_on && !menubar_ready()) return;
+    win_t *f = focused();
+    refresh_border(f);
+    refresh_menubar(f);
 }
 
 // ---- apps ----
@@ -270,7 +279,7 @@ static void add_app(pid_t pid, int assign, bool nopreview, int attempt) {
 
 void wm_add_app(pid_t pid, const char *bundle_id) {
     add_app(pid, config_assign(bundle_id), config_no_preview(bundle_id), 0);
-    refresh_menubar();
+    if (menubar_ready()) refresh_menubar(focused());
 }
 
 void wm_remove_app(pid_t pid) {
@@ -301,7 +310,10 @@ static void ax_cb(AXObserverRef obs, AXUIElementRef el, CFStringRef n, void *ctx
     } else if (CFEqual(n, kAXFocusedWindowChangedNotification) || CFEqual(n, kAXMainWindowChangedNotification)) {
         wm_on_focus();
     } else {
-        refresh_border();
+        bool mini = CFEqual(n, kAXWindowMiniaturizedNotification);
+        for (int i = 0; i < nwins; i++)
+            if (CFEqual(wins[i].el, el)) { wins[i].minimized = mini; break; }
+        refresh_ui();
     }
 }
 
@@ -329,8 +341,8 @@ void wm_on_focus(void) {
         stale = 0;
         last_focus[cur] = w->wid;
     }
-    refresh_border();
-    refresh_menubar();
+    refresh_border(w);
+    refresh_menubar(w);
 }
 
 void wm_switch(int ws) {
@@ -351,11 +363,10 @@ void wm_switch(int ws) {
     settle_until = now + SETTLE_S;
     fresh_until = now + FRESH_S;
     fresh_wid = t ? t->wid : 0;
-    refresh_border();
-    refresh_menubar();
+    refresh_ui();
     // WindowServer may not list the windows just shown as on screen yet: check again once it does.
-    if (config_menubar())
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (FRESH_S + 0.05) * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ refresh_menubar(); });
+    if (menubar_ready())
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (FRESH_S + 0.05) * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ refresh_menubar(focused()); });
 }
 
 void wm_move_focused(int ws) {
@@ -370,8 +381,7 @@ void wm_move_focused(int ws) {
         focus_in_current();
         settle_until = CFAbsoluteTimeGetCurrent() + SETTLE_S;
     }
-    refresh_border();
-    refresh_menubar();
+    refresh_ui();
 }
 
 static CFStringRef title_of(AXUIElementRef el) {
@@ -451,7 +461,7 @@ static bool is_shown(CFArrayRef shown, uint32_t wid) {
 // +1 icon/app/title per entry (title is the row text; the caller releases them); *sel is the window after the
 // focused one (before it for dir < 0).
 static bool switchable(win_t *w, CFArrayRef shown) {
-    return w->ws == cur && !w->hidden && !get_bool(w->el, kAXMinimizedAttribute) && is_shown(shown, w->wid);
+    return w->ws == cur && !w->hidden && !w->minimized && is_shown(shown, w->wid);
 }
 
 int wm_windows(int dir, sw_entry_t **out, int *sel) {
@@ -507,7 +517,7 @@ static int menubar_order(pid_t *pids, uint32_t *wids) {
     CFArrayRef shown = shown_windows();
     for (int i = 0; i < nwins && nv < JD_MENUBAR_WINS; i++) {
         win_t *w = &wins[i];
-        if (w->ws != cur || w->hidden || get_bool(w->el, kAXMinimizedAttribute)) continue;
+        if (w->ws != cur || w->hidden || w->minimized) continue;
         bool listed = is_shown(shown, w->wid);
         if (now - w->shown_at > FRESH_S) w->was_listed = listed;
         else listed = listed || w->was_listed;
@@ -529,9 +539,8 @@ static int menubar_order(pid_t *pids, uint32_t *wids) {
     return n;
 }
 
-static void refresh_menubar(void) {
-    if (!config_menubar()) return;
-    win_t *f = focused(); // may track a window: before anything points into wins
+static void refresh_menubar(win_t *f) {
+    if (!menubar_ready()) return; // apps_init runs before menubar_init: the first draw is wm_on_focus in main
     double now = CFAbsoluteTimeGetCurrent();
     uint32_t front = now < fresh_until && fresh_wid ? fresh_wid : f ? f->wid : 0;
     pid_t pids[JD_MENUBAR_WINS];
@@ -580,12 +589,11 @@ void wm_focus_wid(uint32_t wid) {
     if (!w || w->ws != cur) return;
     last_focus[cur] = wid;
     focus(w);
-    refresh_border();
-    if (!config_menubar()) return;
     fresh_until = CFAbsoluteTimeGetCurrent() + FRESH_S;
     fresh_wid = wid;
-    refresh_menubar();
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (FRESH_S + 0.05) * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ refresh_menubar(); });
+    refresh_ui();
+    if (!menubar_ready()) return;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (FRESH_S + 0.05) * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ refresh_menubar(focused()); });
 }
 
 void wm_restore_all(void) {

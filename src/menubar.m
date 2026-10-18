@@ -519,6 +519,10 @@ void menubar_update(int ws, const pid_t *pids, const uint32_t *wids, int n, int 
     }
 }
 
+bool menubar_ready(void) {
+    return item != nil;
+}
+
 void menubar_forget(pid_t pid) {
     for (int i = 0; i < nglyphs; i++) {
         if (glyphs[i].pid != pid) continue;

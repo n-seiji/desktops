@@ -61,6 +61,7 @@ void thumb_end(void);            // the switcher closed: drop everything held
 
 // menubar.m
 void menubar_init(void);
+bool menubar_ready(void); // menubar_init has run: the item exists
 // The current desktop ws, the n pids of the apps on it in switcher order, and the focused pid.
 // Redraws only when one of them changed.
 void menubar_update(int ws, const pid_t *pids, const uint32_t *wids, int n, int over, uint32_t over_hash, uint32_t front);
