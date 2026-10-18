@@ -9,54 +9,59 @@
 // Card switchers (square and peek). One glass square on the main display with one window shown
 // large. Like the list panel, every large surface is drawn once per open: the stage is flushed
 // once, each card is its own small window that is moved (and for peek scaled and faded) while it
-// animates, and the counter and the dots are tiny windows redrawn per step. Everything exists
+// animates, and the counter and the dots (square only) are tiny windows redrawn per step. Everything exists
 // only while ⌥ is held after a Tab; the animation timer runs only while cards move.
 //
 // The windows of the entries form a strip with unwrapped positions v (the entry is v mod n).
 // A card holds one position and sits at p = v - sel_v slots from the centre. Square slides a
 // card a short way while it fades, so it never hangs far outside the stage: SkyLight does not
 // clip a window's drawn content to SLSSetWindowShape, and a shape change blanks the window
-// until it is flushed again. Peek lets the neighbours float outside the stage at a smaller size
-// and lower alpha.
+// until it is flushed again. Peek puts the neighbours behind the stage at a smaller size, so they
+// peek out on both sides; it has no dots.
 
-#define STAGE 360.0
-#define STAGE_R 34.0
+#define STAGE_W 640.0
+#define STAGE_H_PEEK 460.0 // with the caption row
+#define STAGE_H_SQUARE 420.0 // no caption, with the dots
+#define STAGE_R 40.0
 #define BLUR 30
-#define THUMB_W 300.0
-#define THUMB_H 188.0
-#define THUMB_R 10.0
+#define THUMB_W 576.0
+#define THUMB_H 330.0
+#define THUMB_R 12.0
+#define THUMB_X 32.0 // the thumbnail box in the stage
+#define THUMB_Y 56.0
 #define CARD_PADX 16.0 // room around the thumbnail for its shadow
 #define CARD_PADT 12.0
 #define CARD_W (THUMB_W + 2 * CARD_PADX)
-#define CARD_H 250.0
-#define CARD_X (30.0 - CARD_PADX) // the card window's origin in the stage
-#define CARD_Y (66.0 - CARD_PADT)
-#define CAP_CY (CARD_PADT + 210.0) // the caption's centre line in the card
-#define ICON 24.0
-#define ICON_GAP 8.0
-#define PLACE_ICON 96.0
-#define INSET 26.0
-#define HEADER_CY 30.0
-#define DOT 6.0
-#define DOT_GAP 6.0
-#define PILL 18.0
-#define DOTS_CY 334.0
+#define CARD_H_PEEK 392.0
+#define CARD_H_SQUARE 362.0 // the thumbnail and its shadow
+#define CARD_X (THUMB_X - CARD_PADX) // the card window's origin in the stage
+#define CARD_Y (THUMB_Y - CARD_PADT)
+#define CAP_CY (410.0 - CARD_Y) // the caption's centre line in the card
+#define ICON 28.0
+#define ICON_GAP 12.0
+#define PLACE_ICON 128.0
+#define INSET 32.0
+#define HEADER_CY 32.0
+#define DOT 7.0
+#define DOT_GAP 8.0
+#define PILL 22.0
+#define DOTS_CY 403.5
 #define MAX_DOTS 12
 #define COUNTER_W 80.0
 #define COUNTER_H 20.0
 #define SQUARE_DX 120.0 // how far a square card slides before it has faded out
 #define SQUARE_FADE 1.6
-#define PEEK_DX 270.0
+#define PEEK_DX 480.0
 #define PEEK_SCALE 0.68
-#define PEEK_ALPHA 0.5
 #ifndef MOVE_MS
 #define MOVE_MS 340.0
 #endif
 #define MAX_CARDS 4
+#define CARD_RES 1 // the cards are drawn at 1x: 2x would add ~15MB at peak (the stage, the counter and the dots stay sharp)
 
 enum { F_HEADER, F_CAPTION, NFONTS };
 static const struct { CGFloat size, weight; } font_specs[NFONTS] = {
-    {12, 0.23}, {16, 0.3},
+    {14, 0.23}, {19, 0.3},
 };
 
 typedef struct {
@@ -90,6 +95,14 @@ static CGPoint so; // the stage's origin
 static dispatch_source_t timer;
 static double t0;
 
+static CGFloat stage_h(void) {
+    return peek ? STAGE_H_PEEK : STAGE_H_SQUARE;
+}
+
+static CGFloat card_h(void) {
+    return peek ? CARD_H_PEEK : CARD_H_SQUARE;
+}
+
 static int idx_of(long v) {
     return (int)(((v % n) + n) % n);
 }
@@ -114,7 +127,7 @@ static double ease(double k) {
 static pose_t pose(double p) {
     if (!peek) return (pose_t){p * SQUARE_DX, 1, fmax(0, 1 - SQUARE_FADE * fabs(p))};
     double ap = fabs(p), near = fmin(ap, 1);
-    double a = ap <= 1 ? 1 - (1 - PEEK_ALPHA) * ap : PEEK_ALPHA * fmax(0, 2 - ap);
+    double a = fmin(1, fmax(0, 2 - ap)); // opaque, until it leaves past the neighbour slot
     return (pose_t){p * PEEK_DX, 1 - (1 - PEEK_SCALE) * near, a};
 }
 
@@ -136,14 +149,14 @@ static uint32_t dim_text(void) {
 }
 
 static void draw_stage(void) {
-    CGSize sz = {STAGE, STAGE};
+    CGSize sz = {STAGE_W, stage_h()};
     begin(stage_ctx, sz);
     sw_fill_rrect(stage_ctx, (CGRect){{0, 0}, sz}, STAGE_R, pal.tint, pal.tint_a);
     sw_edge_rrect(stage_ctx, (CGRect){{0, 0}, sz}, STAGE_R, &pal);
     char buf[32];
     snprintf(buf, sizeof buf, "Desktop %d", wm_current());
     CFStringRef s = CFStringCreateWithCString(NULL, buf, kCFStringEncodingUTF8);
-    sw_put(stage_ctx, sw_fit(fonts[F_HEADER], s, dim_text(), STAGE / 2, kCTLineTruncationEnd), INSET, HEADER_CY);
+    sw_put(stage_ctx, sw_fit(fonts[F_HEADER], s, dim_text(), STAGE_W / 2, kCTLineTruncationEnd), INSET, HEADER_CY);
     CFRelease(s);
     finish(stage_ctx);
 }
@@ -205,11 +218,11 @@ static void draw_image(CGContextRef c, CGImageRef img, CGRect r, bool round) {
     CGContextRestoreGState(c);
 }
 
-// The thumbnail (or the app icon until the screenshot is there) and the caption.
+// The thumbnail (or the app icon until the screenshot is there) and, for peek, the caption.
 static void draw_card(card_t *k) {
     const sw_entry_t *e = &ents[idx_of(k->v)];
     CGContextRef c = k->ctx;
-    CGSize sz = {CARD_W, CARD_H};
+    CGSize sz = {CARD_W, card_h()};
     begin(c, sz);
     CGRect box = {{CARD_PADX, CARD_PADT}, {THUMB_W, THUMB_H}};
     if (k->img) {
@@ -234,20 +247,20 @@ static void draw_card(card_t *k) {
             CGImageRelease(big);
         }
     }
-    CFStringRef text = sw_text(e);
-    uint32_t rgb = peek ? 0xffffff : pal.title; // peek titles may sit over the desktop
-    CTLineRef l = text ? sw_fit(fonts[F_CAPTION], text, rgb, THUMB_W - ICON - ICON_GAP,
-                                sw_is_path(text) ? kCTLineTruncationStart : kCTLineTruncationEnd) : NULL;
-    CGFloat tw = l ? CTLineGetTypographicBounds(l, NULL, NULL, NULL) : 0;
-    CGFloat x = CARD_PADX + (THUMB_W - (ICON + ICON_GAP + tw)) / 2;
-    if (e->icon) draw_image(c, e->icon, (CGRect){{x, CAP_CY - ICON / 2}, {ICON, ICON}}, false);
-    if (l) {
-        if (peek) {
+    if (peek) {
+        CFStringRef text = sw_text(e);
+        uint32_t rgb = 0xffffff; // the neighbours sit over the desktop
+        CTLineRef l = text ? sw_fit(fonts[F_CAPTION], text, rgb, THUMB_W - ICON - ICON_GAP,
+                                    sw_is_path(text) ? kCTLineTruncationStart : kCTLineTruncationEnd) : NULL;
+        CGFloat tw = l ? CTLineGetTypographicBounds(l, NULL, NULL, NULL) : 0;
+        CGFloat x = CARD_PADX + (THUMB_W - (ICON + ICON_GAP + tw)) / 2;
+        if (e->icon) draw_image(c, e->icon, (CGRect){{x, CAP_CY - ICON / 2}, {ICON, ICON}}, false);
+        if (l) {
             CGColorRef sh = CGColorCreateGenericGray(0, dark ? 0.55 : 0.7);
             CGContextSetShadowWithColor(c, CGSizeMake(0, -1), 4, sh);
             CGColorRelease(sh);
+            sw_put(c, l, x + ICON + ICON_GAP, CAP_CY);
         }
-        sw_put(c, l, x + ICON + ICON_GAP, CAP_CY);
     }
     finish(c);
 }
@@ -280,8 +293,9 @@ static void place(card_t *k, double p) {
         set_alpha(k, q.a);
         return;
     }
-    CGPoint centre = {o.x + CARD_W / 2, o.y + CARD_H / 2};
-    CGFloat is = 1 / q.s, tx = CARD_W / 2 - centre.x * is, ty = CARD_H / 2 - centre.y * is;
+    // The card scales about the stage's centre, so its window centre follows scaled.
+    CGPoint centre = {so.x + STAGE_W / 2 + q.x, so.y + STAGE_H_PEEK / 2 + q.s * (CARD_Y + CARD_H_PEEK / 2 - STAGE_H_PEEK / 2)};
+    CGFloat is = 1 / q.s, tx = CARD_W / 2 - centre.x * is, ty = CARD_H_PEEK / 2 - centre.y * is;
     SLSSetWindowTransform(cid, k->wid, CGAffineTransformMake(is, 0, 0, is, tx, ty));
     set_alpha(k, q.a);
 }
@@ -359,22 +373,30 @@ static int needed(long *out) {
     return m;
 }
 
+// Peek draws the neighbours behind the stage so they peek out from under it; the selected card is on
+// top. Re-ordering a window below the stage does not take, so it goes by window level.
+static void order(card_t *k) {
+    int base = CGWindowLevelForKey(kCGPopUpMenuWindowLevelKey);
+    if (peek) SLSSetWindowLevel(cid, k->wid, k->v == sel_v ? base + 1 : base - 1);
+    SLSOrderWindow(cid, k->wid, 1, stage);
+}
+
 static card_t *new_card(long v) {
     for (int i = 0; i < pool; i++) {
         card_t *k = &cards[i];
         if (k->used) continue;
         if (!k->wid) {
-            k->wid = sw_window(cid, so, (CGSize){CARD_W, CARD_H}, 0, 0, &k->ctx);
+            k->wid = sw_window(cid, so, (CGSize){CARD_W, card_h()}, 0, 0, CARD_RES, &k->ctx);
             if (!k->wid || !k->ctx) {
                 release_card(k);
                 return NULL;
             }
             set_alpha(k, 0);
-            SLSOrderWindow(cid, k->wid, 1, 0);
         }
         k->shot = false;
         k->used = true;
         k->v = v;
+        order(k);
         draw_card(k);
         request_thumb(i);
         return k;
@@ -408,6 +430,7 @@ static void settle(bool animate) {
         if (!k->used) continue;
         k->to = k->v - sel_v;
         if (!animate) k->from = k->to;
+        if (k->wid) order(k);
     }
 }
 
@@ -427,15 +450,16 @@ static void open_cards(int dir, bool is_peek) {
     bool ok = true;
     for (int i = 0; i < NFONTS; i++) ok = (fonts[i] = sw_font(font_specs[i].size, font_specs[i].weight)) && ok;
     CGRect d = CGDisplayBounds(CGMainDisplayID());
-    so = CGPointMake(d.origin.x + (d.size.width - STAGE) / 2, d.origin.y + (d.size.height - STAGE) / 2);
+    so = CGPointMake(d.origin.x + (d.size.width - STAGE_W) / 2, d.origin.y + (d.size.height - stage_h()) / 2);
     if (ok) {
-        stage = sw_window(cid, so, (CGSize){STAGE, STAGE}, STAGE_R, BLUR, &stage_ctx);
-        counter = sw_window(cid, (CGPoint){so.x + STAGE - INSET - COUNTER_W, so.y + HEADER_CY - COUNTER_H / 2},
-                            (CGSize){COUNTER_W, COUNTER_H}, 0, 0, &counter_ctx);
-        dots = sw_window(cid, (CGPoint){so.x + (STAGE - dots_w()) / 2, so.y + DOTS_CY - (DOT + 4) / 2},
-                         (CGSize){dots_w(), DOT + 4}, 0, 0, &dots_ctx);
+        stage = sw_window(cid, so, (CGSize){STAGE_W, stage_h()}, STAGE_R, BLUR, 2, &stage_ctx);
+        counter = sw_window(cid, (CGPoint){so.x + STAGE_W - INSET - COUNTER_W, so.y + HEADER_CY - COUNTER_H / 2},
+                            (CGSize){COUNTER_W, COUNTER_H}, 0, 0, 2, &counter_ctx);
+        if (!peek)
+            dots = sw_window(cid, (CGPoint){so.x + (STAGE_W - dots_w()) / 2, so.y + DOTS_CY - (DOT + 4) / 2},
+                             (CGSize){dots_w(), DOT + 4}, 0, 0, 2, &dots_ctx);
     }
-    if (!ok || !stage || !counter || !dots || !stage_ctx || !counter_ctx || !dots_ctx) {
+    if (!ok || !stage || !counter || !stage_ctx || !counter_ctx || (!peek && (!dots || !dots_ctx))) {
         close_cards();
         return;
     }
@@ -445,10 +469,10 @@ static void open_cards(int dir, bool is_peek) {
     if (thumbs) thumb_begin();
     draw_stage();
     draw_counter();
-    draw_dots();
+    if (dots) draw_dots();
     SLSOrderWindow(cid, stage, 1, 0);
     SLSOrderWindow(cid, counter, 1, stage);
-    SLSOrderWindow(cid, dots, 1, stage);
+    if (dots) SLSOrderWindow(cid, dots, 1, stage);
     settle(false);
     for (int i = 0; i < pool; i++)
         if (cards[i].used) place(&cards[i], cards[i].to);
@@ -469,7 +493,7 @@ void card_step(int dir, bool is_peek) {
     sel_v += dir;
     last_dir = dir;
     draw_counter();
-    draw_dots();
+    if (dots) draw_dots();
     settle(true);
     SLSDisableUpdate(cid);
     for (int i = 0; i < pool; i++)

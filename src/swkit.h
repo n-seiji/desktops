@@ -28,9 +28,9 @@ void sw_fill_rrect(CGContextRef c, CGRect r, CGFloat radius, uint32_t rgb, CGFlo
 void sw_edge_rrect(CGContextRef c, CGRect r, CGFloat radius, const palette_t *pal);
 // The rounded rect's shape in horizontal half-point strips, so the blur does not show outside the corners.
 CFTypeRef sw_rounded_region(CGSize sz, CGFloat radius);
-// A translucent, mouse-transparent window at at of size sz, drawn at 2x. With radius > 0 the background
+// A translucent, mouse-transparent window at at of size sz, drawn at res (2 is sharp on Retina, 1 costs a quarter of the memory). With radius > 0 the background
 // is blurred and the window takes the rounded shape.
-uint32_t sw_window(int cid, CGPoint at, CGSize sz, CGFloat radius, int blur, CGContextRef *out);
+uint32_t sw_window(int cid, CGPoint at, CGSize sz, CGFloat radius, int blur, double res, CGContextRef *out);
 
 // The row text of an entry: its cleaned title, or the app name when there is none.
 static inline CFStringRef sw_text(const sw_entry_t *e) {

@@ -5,8 +5,8 @@
 // runs unless a card style is configured, so the list and off styles pay nothing for it.
 // The shareable window list and the pending requests live only between thumb_begin and thumb_end.
 
-#define MAX_PX_W 600.0 // the thumbnail box, 300x188 pt, at 2x
-#define MAX_PX_H 376.0
+#define MAX_PX_W 1152.0 // the thumbnail box, 576x330 pt, at 2x
+#define MAX_PX_H 660.0
 
 static unsigned generation;
 static id content;                // SCShareableContent, once it has arrived

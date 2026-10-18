@@ -129,7 +129,7 @@ CFTypeRef sw_rounded_region(CGSize sz, CGFloat radius) {
     return shape;
 }
 
-uint32_t sw_window(int cid, CGPoint at, CGSize sz, CGFloat radius, int blur, CGContextRef *out) {
+uint32_t sw_window(int cid, CGPoint at, CGSize sz, CGFloat radius, int blur, double res, CGContextRef *out) {
     CGRect r = {{0, 0}, sz};
     CFTypeRef region = NULL;
     CGSNewRegionWithRect(&r, &region);
@@ -140,7 +140,7 @@ uint32_t sw_window(int cid, CGPoint at, CGSize sz, CGFloat radius, int blur, CGC
     if (!w) return 0;
     uint64_t tags[2] = {(1ULL << 1) | (1ULL << 9), 0}; // floating, ignores mouse events
     SLSSetWindowTags(cid, w, tags, 64);
-    SLSSetWindowResolution(cid, w, 2.0);
+    SLSSetWindowResolution(cid, w, res);
     SLSSetWindowOpacity(cid, w, false);
     SLSSetWindowLevel(cid, w, CGWindowLevelForKey(kCGPopUpMenuWindowLevelKey));
     if (radius > 0) {

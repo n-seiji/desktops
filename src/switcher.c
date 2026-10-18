@@ -28,6 +28,7 @@
 #define BLUR 30
 #define MAX_ROWS 9
 #define SLIDE_MS 120.0
+#define SHOW_DELAY_MS 150 // the panel appears only after ⌥ has been held this long since the first Tab
 
 enum { F_HEADER, F_ROW, NFONTS };
 static const struct { CGFloat size, weight; } font_specs[NFONTS] = {
@@ -193,9 +194,9 @@ static void open_panel(int dir) {
     CGRect d = CGDisplayBounds(CGMainDisplayID());
     origin = CGPointMake(d.origin.x + (d.size.width - size.width) / 2, d.origin.y + (d.size.height - size.height) / 2);
     hl_last = sel - top == rows - 1;
-    wid = sw_window(cid, origin, size, RADIUS, BLUR, &ctx);
+    wid = sw_window(cid, origin, size, RADIUS, BLUR, 2, &ctx);
     CGPoint o = hl_origin();
-    hwid = wid ? sw_window(cid, o, hl_size(), 0, 0, &hctx) : 0;
+    hwid = wid ? sw_window(cid, o, hl_size(), 0, 0, 2, &hctx) : 0;
     if (!hwid || !ctx || !hctx) {
         close_panel();
         return;
@@ -208,7 +209,7 @@ static void open_panel(int dir) {
     SLSOrderWindow(cid, hwid, 1, wid);
 }
 
-void switcher_step(int dir) {
+static void panel_step(int dir) {
     if (config_switcher_style() >= SW_SQUARE) {
         card_step(dir, config_switcher_style() == SW_PEEK);
         return;
@@ -240,7 +241,7 @@ void switcher_step(int dir) {
     dispatch_resume(timer);
 }
 
-void switcher_commit(void) {
+static void panel_commit(void) {
     if (config_switcher_style() >= SW_SQUARE) {
         card_commit();
         return;
@@ -251,10 +252,70 @@ void switcher_commit(void) {
     wm_focus_wid(target);
 }
 
-void switcher_cancel(void) {
+static void panel_cancel(void) {
     if (config_switcher_style() >= SW_SQUARE) {
         card_cancel();
         return;
     }
     if (wid) close_panel();
+}
+
+// A tap of ⌥Tab must not flash the panel. From the first Tab until the delay is over only the
+// selection is tracked (the first direction and the net of the later Tabs); no window, font or
+// icon exists. The timer opens the panel and replays the extra steps.
+static dispatch_source_t delay;
+static bool waiting, visible;
+static int first_dir, extra;
+
+static void stop_delay(void) {
+    if (!delay) return;
+    dispatch_source_cancel(delay);
+    dispatch_release(delay);
+    delay = NULL;
+}
+
+static void show(void) {
+    stop_delay();
+    waiting = false;
+    visible = true;
+    panel_step(first_dir);
+    for (int i = 0; i < abs(extra); i++) panel_step(extra > 0 ? 1 : -1);
+}
+
+void switcher_step(int dir) {
+    if (visible) {
+        panel_step(dir);
+        return;
+    }
+    if (waiting) {
+        extra += dir;
+        return;
+    }
+    waiting = true;
+    first_dir = dir;
+    extra = 0;
+    delay = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+    dispatch_source_set_timer(delay, dispatch_time(DISPATCH_TIME_NOW, SHOW_DELAY_MS * NSEC_PER_MSEC), DISPATCH_TIME_FOREVER, 5 * NSEC_PER_MSEC);
+    dispatch_source_set_event_handler(delay, ^{ show(); });
+    dispatch_resume(delay);
+}
+
+void switcher_commit(void) {
+    if (!waiting) {
+        visible = false;
+        panel_commit();
+        return;
+    }
+    stop_delay();
+    waiting = false;
+    sw_entry_t *list = NULL;
+    int sel, count = wm_windows(first_dir, &list, &sel);
+    if (count) wm_focus_wid(list[((sel + extra) % count + count) % count].wid);
+    sw_free_entries(list, count);
+}
+
+void switcher_cancel(void) {
+    stop_delay();
+    waiting = visible = false;
+    panel_cancel();
 }
