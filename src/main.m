@@ -16,6 +16,7 @@
 #include <mach-o/dyld.h>
 #include <spawn.h>
 #include <sys/file.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 extern char **environ;
@@ -67,6 +68,36 @@ void jd_restart(void) {
     exit(1);
 }
 
+// Takes the single-instance lock in the per-user temp directory (mode 0700, unlike /tmp). Exits 0 when
+// another instance holds it: launchd's KeepAlive would respawn a nonzero exit forever. Any other
+// failure is a real error and exits 1. The descriptor stays open for the life of the process.
+static void acquire_lock(void) {
+    char dir[PATH_MAX], path[PATH_MAX];
+    size_t len = confstr(_CS_DARWIN_USER_TEMP_DIR, dir, sizeof dir);
+    if (len == 0 || len > sizeof dir) {
+        fprintf(stderr, "just-desktops: cannot find the per-user temp directory: %s\n", strerror(errno));
+        exit(1);
+    }
+    snprintf(path, sizeof path, "%s%sjust-desktops.lock", dir, dir[len - 2] == '/' ? "" : "/");
+    // close-on-exec: the restart helper must not inherit the lock, or the new instance could not take it
+    int fd = open(path, O_CREAT | O_RDWR | O_NOFOLLOW | O_CLOEXEC, 0600);
+    struct stat st;
+    if (fd < 0 || fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) || st.st_uid != geteuid()) {
+        fprintf(stderr, "just-desktops: cannot use the lock file %s: %s\n", path,
+                fd < 0 ? strerror(errno) : "not a regular file owned by you");
+        exit(1);
+    }
+    if (flock(fd, LOCK_EX | LOCK_NB) != 0) {
+        if (errno != EWOULDBLOCK) {
+            fprintf(stderr, "just-desktops: cannot lock %s: %s\n", path, strerror(errno));
+            exit(1);
+        }
+        fprintf(stderr, "just-desktops: already running\n");
+        exit(0);
+    }
+    (void)fd;
+}
+
 int main(int argc, char **argv) {
     if (argc > 1) {
         if (!strcmp(argv[1], "--version") || !strcmp(argv[1], "-v")) {
@@ -77,14 +108,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    int lock = open("/tmp/just-desktops.lock", O_CREAT | O_RDWR, 0600);
-    // close-on-exec: the restart helper must not inherit the lock, or the new instance could not take it
-    if (lock >= 0) fcntl(lock, F_SETFD, FD_CLOEXEC);
-    if (lock < 0 || flock(lock, LOCK_EX | LOCK_NB) != 0) {
-        fprintf(stderr, "just-desktops: already running\n");
-        return 0; // not a failure: launchd's KeepAlive would respawn a nonzero exit forever
-    }
-
+    acquire_lock();
     @autoreleasepool {
         // Installed before the Accessibility wait so a signal there exits cleanly too.
         int sigs[3] = {SIGINT, SIGTERM, SIGHUP};
