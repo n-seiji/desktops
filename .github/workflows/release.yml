@@ -13,6 +13,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
       - run: mise run dist
-      - run: gh release create "$GITHUB_REF_NAME" dist/*.tar.gz --generate-notes
+      - run: mise run dist-app
+      - run: gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/*.app.zip dist/*.app.zip.sha256 --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}

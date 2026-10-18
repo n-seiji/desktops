@@ -53,6 +53,25 @@ SkyLight is a private Apple API, so a macOS update can break the border, the sam
 
 ## Install
 
+### App
+
+Download `just-desktops-<version>.app.zip` from [Releases](https://github.com/n-seiji/just-desktops/releases), unzip it and move `just-desktops.app` to `/Applications`. Homebrew (`brew install --cask n-seiji/tap/just-desktops`) is coming soon, once the tap exists.
+
+First launch:
+
+1. Open the app. There is no Dock icon; with `menubar = on` it shows in the menu bar, otherwise it just runs.
+2. The build is ad-hoc signed and not notarized, so macOS may block it. Right-click the app and choose Open, or on macOS 15 and later open System Settings > Privacy & Security and choose Open Anyway.
+3. Allow just-desktops under System Settings > Privacy & Security > Accessibility. It starts working as soon as permission is granted.
+4. Screen Recording is asked for only when the config has `switcher = square`.
+
+Ad-hoc signed apps are identified by their code hash, so macOS asks for these permissions again after every update.
+
+To start at login for now, add the app under System Settings > General > Login Items. To quit, use `pkill just-desktops` (or Quit from the menu bar item's right-click menu when `menubar = on`).
+
+The app and the launchd service below must not run together: the second instance exits at once.
+
+### CLI install
+
 ```sh
 mise use -g github:n-seiji/just-desktops
 just-desktops

@@ -41,6 +41,15 @@ for arch in arm64 x86_64; do
 done
 '''
 
+[tasks.app]
+description = "Build dist/just-desktops.app (universal; CODESIGN_IDENTITY signs with a real identity, default ad-hoc)"
+run = "scripts/build-app.sh"
+
+[tasks.dist-app]
+description = "Build the app bundle and zip it with a sha256 file"
+depends = ["app"]
+run = "scripts/package-app.sh"
+
 [tasks.service]
 description = "Register a LaunchAgent that starts at login"
 run = '''
