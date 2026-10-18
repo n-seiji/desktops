@@ -18,6 +18,14 @@ static void grace(const char *what, bool listed, bool was, double now, double sh
     failed++;
 }
 
+static void parked(const char *what, CGPoint p, bool want) {
+    CGRect main_display = {{0, 0}, {1920, 1212}};
+    bool got = shown_is_parked(p, main_display);
+    if (got == want) return;
+    printf("FAIL shown_is_parked(%s) = %d; want %d\n", what, got, want);
+    failed++;
+}
+
 static void front(const char *what, double now, double until, uint32_t fresh, uint32_t focused, uint32_t want) {
     uint32_t got = shown_front(now, until, fresh, focused);
     if (got == want) return;
@@ -54,6 +62,19 @@ int main(void) {
     front("period over", 5.3, 5.3, 42, 7, 7);
     front("nothing focused by us", 5, 5.3, 0, 7, 7);
     front("nothing focused at all", 6, 5.3, 42, 0, 0);
+
+    CGPoint park = shown_park_point(main_display);
+    if (park.x != 1919 || park.y != 1211) {
+        printf("FAIL shown_park_point = {%g,%g}; want {1919,1211}\n", park.x, park.y);
+        failed++;
+    }
+    parked("the park point", (CGPoint){1919, 1211}, true);
+    parked("4pt left of it", (CGPoint){1915, 1211}, true);
+    parked("5pt left of it", (CGPoint){1914, 1211}, false);
+    parked("64pt above it", (CGPoint){1919, 1147}, true);
+    parked("65pt above it", (CGPoint){1919, 1146}, false);
+    parked("a normal window", (CGPoint){100, 100}, false);
+    parked("past the corner", (CGPoint){2500, 1500}, true);
 
     puts(failed ? "FAILED" : "ok");
     return failed != 0;

@@ -15,6 +15,12 @@ bool shown_visible(double alpha, CGRect window, const CGRect *displays, uint32_t
 // time the window was past that period, and is updated then.
 bool shown_grace(bool listed, bool *was_listed, double now, double shown_at);
 
+// Windows of inactive desktops are parked at the bottom-right corner of the main display. This is
+// the point a window's origin is moved to, and whether an origin is (near) it: used to bring back
+// windows a crashed run left there.
+CGPoint shown_park_point(CGRect display);
+bool shown_is_parked(CGPoint origin, CGRect display);
+
 // The window the menu bar marks: the one just focused by us until FRESH_S has passed, because the
 // focus macOS reports lags behind, else the reported one. 0 for none.
 uint32_t shown_front(double now, double fresh_until, uint32_t fresh_wid, uint32_t focused_wid);

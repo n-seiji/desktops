@@ -85,13 +85,7 @@ static void set_pos(AXUIElementRef el, CGPoint p) {
 }
 
 static CGPoint hide_point(void) {
-    CGRect b = CGDisplayBounds(CGMainDisplayID());
-    return CGPointMake(CGRectGetMaxX(b) - 1, CGRectGetMaxY(b) - 1);
-}
-
-static bool near_hide_point(CGPoint p) {
-    CGPoint h = hide_point();
-    return p.x >= h.x - 4 && p.y >= h.y - 64;
+    return shown_park_point(CGDisplayBounds(CGMainDisplayID()));
 }
 
 // ---- lookup ----
@@ -177,7 +171,7 @@ static win_t *track(app_t *a, AXUIElementRef el) {
 
     // A window left in the corner by a previous crash: bring it back.
     CGPoint p;
-    if (get_value(el, kAXPositionAttribute, kAXValueTypeCGPoint, &p) && near_hide_point(p)) {
+    if (get_value(el, kAXPositionAttribute, kAXValueTypeCGPoint, &p) && shown_is_parked(p, CGDisplayBounds(CGMainDisplayID()))) {
         CGRect b = CGDisplayBounds(CGMainDisplayID());
         set_pos(el, CGPointMake(b.origin.x + 40, b.origin.y + 60));
     }

@@ -23,3 +23,12 @@ bool shown_grace(bool listed, bool *was_listed, double now, double shown_at) {
 uint32_t shown_front(double now, double fresh_until, uint32_t fresh_wid, uint32_t focused_wid) {
     return now < fresh_until && fresh_wid ? fresh_wid : focused_wid;
 }
+
+CGPoint shown_park_point(CGRect display) {
+    return CGPointMake(CGRectGetMaxX(display) - 1, CGRectGetMaxY(display) - 1);
+}
+
+bool shown_is_parked(CGPoint p, CGRect display) {
+    CGPoint h = shown_park_point(display);
+    return p.x >= h.x - 4 && p.y >= h.y - 64;
+}
