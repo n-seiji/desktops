@@ -103,7 +103,7 @@ com.apple.Safari = 1
 ## Design
 
 - **One process.** Workspaces, the switcher and the border live in one daemon.
-- **Mostly C.** The Objective-C is `src/apps.m` (app launch, quit and activation events) and `src/menubar.m` (the status item, created only when `menubar` is not `off`; `src/app.m` is the app's first-run panel, login item and config helpers).
+- **Mostly C.** The Objective-C is `src/apps.m` (app launch, quit and activation events) and `src/menubar*.m` (the status item and its panel and menu, created only when `menubar` is not `off`; `src/app.m` is the app's first-run panel, login item and config helpers).
 - **Border through SkyLight**, like JankyBorders, so no NSWindow is created.
 - **Hotkeys through a CGEventTap** on the main run loop. No extra threads.
 
