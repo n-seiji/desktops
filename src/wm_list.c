@@ -82,24 +82,57 @@ static bool switchable(win_t *w, CFArrayRef shown) {
     return w->ws == cur_ws && !w->hidden && !w->minimized && is_shown(shown, w->wid);
 }
 
-// Every switchable window in tracking order.
+// The switchable windows in menu bar order: see order_group. pids and wids need room for nwins
+// (at least 1); *at is f's index in them, or -1. Returns the count, or -1 when out of memory.
+static int switch_order(const win_t *f, pid_t *pids, uint32_t *wids, int *at) {
+    int cap = nwins ? nwins : 1;
+    pid_t *tpid = malloc(sizeof *tpid * cap);
+    uint32_t *twid = malloc(sizeof *twid * cap);
+    int n = -1;
+    if (tpid && twid) {
+        n = 0;
+        CFArrayRef shown = shown_windows();
+        for (int i = 0; i < nwins; i++) {
+            if (!switchable(&wins[i], shown)) continue;
+            tpid[n] = wins[i].pid;
+            twid[n++] = wins[i].wid;
+        }
+        if (shown) CFRelease(shown);
+        order_group(tpid, twid, n, pids, wids);
+        *at = -1;
+        for (int i = 0; i < n && f; i++)
+            if (wids[i] == f->wid) *at = i;
+    }
+    free(tpid);
+    free(twid);
+    return n;
+}
+
+// Every switchable window, in the menu bar's order (grouped by app), so Tab walks the strip left
+// to right.
 int wm_windows(int dir, sw_entry_t **out, int *sel) {
-    sw_entry_t *list = malloc(sizeof *list * (nwins ? nwins : 1));
-    if (!list) return 0;
-    win_t *f = wm_focused();
-    int n = 0, at = -1;
-    CFArrayRef shown = shown_windows();
-    for (int i = 0; i < nwins; i++) {
-        win_t *w = &wins[i];
-        if (!switchable(w, shown)) continue;
-        if (w == f) at = n;
-        CFStringRef app = apps_name(w->pid), raw = ax_title(w->el);
-        app_t *own = wm_find_app(w->pid);
-        list[n++] = (sw_entry_t){w->wid, w->pid, apps_icon(w->pid, 56), app, raw ? title_clean(raw, app) : NULL,
-                                 own && own->nopreview};
+    win_t *f = wm_focused(); // first: it may track a new window, and nwins sizes the arrays
+    int cap = nwins ? nwins : 1, at = -1;
+    sw_entry_t *list = malloc(sizeof *list * cap);
+    pid_t *pids = malloc(sizeof *pids * cap);
+    uint32_t *wids = malloc(sizeof *wids * cap);
+    int n = list && pids && wids ? switch_order(f, pids, wids, &at) : -1;
+    if (n < 0) {
+        free(list);
+        free(pids);
+        free(wids);
+        return 0;
+    }
+    for (int i = 0; i < n; i++) {
+        win_t *w = wm_find_win(wids[i]);
+        CFStringRef app = apps_name(pids[i]), raw = w ? ax_title(w->el) : NULL;
+        app_t *own = wm_find_app(pids[i]);
+        list[i] = (sw_entry_t){wids[i], pids[i], apps_icon(pids[i], 56), app,
+                               raw ? title_clean(raw, app) : NULL, own && own->nopreview};
         if (raw) CFRelease(raw);
     }
-    if (shown) CFRelease(shown);
+    free(pids);
+    free(wids);
     label_entries(list, n);
     *sel = sel_start(at, dir, n);
     *out = list;
@@ -109,17 +142,16 @@ int wm_windows(int dir, sw_entry_t **out, int *sel) {
 // The same windows in the same order as wm_windows, as bare ids: no icons, names or titles.
 // *out is malloc'd; *sel as in wm_windows.
 int wm_window_ids(int dir, uint32_t **out, int *sel) {
-    uint32_t *ids = malloc(sizeof *ids * (nwins ? nwins : 1));
-    if (!ids) return 0;
     win_t *f = wm_focused();
-    int n = 0, at = -1;
-    CFArrayRef shown = shown_windows();
-    for (int i = 0; i < nwins; i++) {
-        if (!switchable(&wins[i], shown)) continue;
-        if (&wins[i] == f) at = n;
-        ids[n++] = wins[i].wid;
+    int cap = nwins ? nwins : 1, at = -1;
+    pid_t *pids = malloc(sizeof *pids * cap);
+    uint32_t *ids = malloc(sizeof *ids * cap);
+    int n = pids && ids ? switch_order(f, pids, ids, &at) : -1;
+    free(pids);
+    if (n < 0) {
+        free(ids);
+        return 0;
     }
-    if (shown) CFRelease(shown);
     *sel = sel_start(at, dir, n);
     *out = ids;
     return n;
