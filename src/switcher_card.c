@@ -1,4 +1,5 @@
 #include "swkit.h"
+#include "cardmath.h"
 #include "extern.h"
 #include "select.h"
 #include <dispatch/dispatch.h>
@@ -55,10 +56,6 @@ static const struct { CGFloat size, weight; } font_specs[NFONTS] = {
 };
 
 typedef struct {
-    double x, a; // offset from the stage centre in pt, alpha
-} pose_t;
-
-typedef struct {
     uint32_t wid;
     CGContextRef ctx;
     bool used;
@@ -86,27 +83,6 @@ static double t0;
 
 static int idx_of(long v) {
     return sel_wrap(v, n);
-}
-
-// cubic-bezier(0.22, 0.9, 0.25, 1): most of the travel happens in the first 80ms.
-static double bez(double a, double b, double t) {
-    double u = 1 - t;
-    return 3 * u * u * t * a + 3 * u * t * t * b + t * t * t;
-}
-
-static double ease(double k) {
-    double lo = 0, hi = 1, t = k;
-    for (int i = 0; i < 24; i++) {
-        double x = bez(0.22, 0.25, t);
-        if (x < k) lo = t;
-        else hi = t;
-        t = (lo + hi) / 2;
-    }
-    return bez(0.9, 1, t);
-}
-
-static pose_t pose(double p) {
-    return (pose_t){p * SQUARE_DX, fmax(0, 1 - SQUARE_FADE * fabs(p))};
 }
 
 static void begin(CGContextRef c, CGSize sz) {
@@ -202,9 +178,7 @@ static void draw_card(card_t *k) {
     begin(c, sz);
     CGRect box = {{CARD_PADX, CARD_PADT}, {THUMB_W, THUMB_H}};
     if (k->img) {
-        CGFloat iw = CGImageGetWidth(k->img), ih = CGImageGetHeight(k->img), f = fmin(THUMB_W / iw, THUMB_H / ih);
-        CGRect r = {{0, 0}, {iw * f, ih * f}};
-        r.origin = CGPointMake(box.origin.x + (THUMB_W - r.size.width) / 2, box.origin.y + (THUMB_H - r.size.height) / 2);
+        CGRect r = cardmath_fit(CGSizeMake(CGImageGetWidth(k->img), CGImageGetHeight(k->img)), box);
         CGContextSaveGState(c);
         CGColorRef sh = CGColorCreateGenericGray(0, 0.4);
         CGContextSetShadowWithColor(c, CGSizeMake(0, -6), 14, sh);
@@ -248,7 +222,7 @@ static void set_alpha(card_t *k, double a) {
 
 // Moves card k to p slots from the centre and applies the pose.
 static void place(card_t *k, double p) {
-    pose_t q = pose(p);
+    cardmath_pose_t q = cardmath_pose(p, SQUARE_DX, SQUARE_FADE);
     CGPoint o = {so.x + CARD_X + q.x, so.y + CARD_Y};
     SLSMoveWindow(cid, k->wid, &o);
     set_alpha(k, q.a);
@@ -299,7 +273,7 @@ static void close_cards(void) {
 static void tick(void) {
     double k = (CFAbsoluteTimeGetCurrent() - t0) * 1000 / MOVE_MS;
     bool done = k >= 1;
-    double e = done ? 1 : ease(k);
+    double e = done ? 1 : cardmath_ease(k);
     SLSDisableUpdate(cid);
     for (int i = 0; i < POOL; i++) {
         card_t *c = &cards[i];
@@ -309,16 +283,6 @@ static void tick(void) {
     }
     SLSReenableUpdate(cid);
     if (done) stop_timer();
-}
-
-// The card windows' positions that must exist with sel_v selected, into out: the selected card and the
-// one that just left.
-static int needed(long *out) {
-    int m = 0;
-    out[m++] = sel_v;
-    if (n < 2) return m;
-    if (last_dir) out[m++] = sel_v - last_dir;
-    return m;
 }
 
 static card_t *new_card(long v) {
@@ -348,7 +312,7 @@ static card_t *new_card(long v) {
 // A surviving card keeps its from; a new one starts one slot beyond its target, on the side it enters from.
 static void settle(bool animate) {
     long need[4];
-    int m = needed(need);
+    int m = cardmath_needed(sel_v, last_dir, n, need);
     for (int i = 0; i < POOL; i++) {
         card_t *k = &cards[i];
         bool keep = false;
@@ -422,7 +386,7 @@ void card_step(int dir) {
     }
     if (n < 2) return;
     double k = timer ? (CFAbsoluteTimeGetCurrent() - t0) * 1000 / MOVE_MS : 1;
-    double e = k >= 1 ? 1 : ease(k);
+    double e = k >= 1 ? 1 : cardmath_ease(k);
     for (int i = 0; i < POOL; i++) {
         card_t *c = &cards[i];
         if (c->used) c->from += (c->to - c->from) * e;

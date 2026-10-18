@@ -1,4 +1,5 @@
 #include "swkit.h"
+#include "cardmath.h"
 #include "extern.h"
 #include "select.h"
 #include <dispatch/dispatch.h>
@@ -163,13 +164,8 @@ static void close_panel(void) {
 
 static void tick(void) {
     double k = (CFAbsoluteTimeGetCurrent() - t0) * 1000 / SLIDE_MS;
-    if (k >= 1) {
-        pos = sel;
-        stop_timer();
-    } else {
-        k = 1 - k;
-        pos = sel + (from_pos - sel) * k * k * k; // ease-out cubic
-    }
+    pos = cardmath_slide(from_pos, sel, k);
+    if (k >= 1) stop_timer();
     CGPoint o = hl_origin();
     SLSMoveWindow(cid, hwid, &o);
 }
