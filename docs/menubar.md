@@ -1,6 +1,14 @@
 # Menu bar
 
-An optional menu bar item shows one glyph per window on this desktop, and the current desktop's key in a box. Turn it on with `menubar = on`. It is off by default.
+An optional menu bar item shows one glyph per window on this desktop, and the current desktop's key in a box.
+
+| `menubar` | Item |
+|---|---|
+| `on` (or `strip`) | The window strip described below |
+| `icon` | Only a small template app icon (an outlined rounded square with a filled one inside) |
+| `off` | None. Command line only |
+
+The command line default is `off`. The app always has an item: its default is `on`, and `off` behaves like `icon`.
 
 ![The menu bar item](images/menubar.png)
 
@@ -17,7 +25,20 @@ An optional menu bar item shows one glyph per window on this desktop, and the cu
 
 - Click a glyph to focus exactly that window.
 - Clicking the key box or a gap between glyphs does nothing.
-- Right-click or control-click the item for a menu with Quit. The item has no permanent menu, so left clicks are never swallowed.
+- Right-click or control-click the item for the menu. The item has no permanent menu, so left clicks are never swallowed. In `icon` mode every click opens it.
+
+## The menu
+
+The bare binary's menu has only Quit. The app's menu has:
+
+- **Switcher**: List, Square, Instant (off), with a check on the current one.
+- **Focus border**: a toggle.
+- **Menu bar**: Windows strip or Icon only.
+- **Launch at Login**: a toggle (a login item registered through macOS). A check means on. If macOS wants approval, the item shows a dash and System Settings > General > Login Items opens.
+- **Open Config File**: creates `~/.config/just-desktops/config` from a commented template if it is missing, then opens it. Keys, modifier, pins and `no_preview` are edited there.
+- **About just-desktops** (opens the project page) and **Quit just-desktops**.
+
+Choosing a setting rewrites only that key in the config file (the line is replaced or appended; other lines and comments stay; a symlinked config stays a symlink), then restarts the app. The restart puts parked windows back on the screen, then starts a new process, so every window ends up on the current desktop, the same as after quitting and launching. Choosing Square asks for Screen Recording after the restart if it is not granted.
 
 ## The `+k` slot
 
@@ -33,6 +54,6 @@ Click `+k` to open a small panel under it. The panel lists the hidden windows in
 
 ## Memory
 
-AppKit's status item costs about 5MB. With `menubar = off` none of it is loaded.
+AppKit's status item costs about 5MB: idle is about 13.6MB with the strip and 12.6MB with `icon`. With `menubar = off` (command line only) none of it is loaded and idle stays about 8MB.
 
 The panel is created on click and freed on close. Opening it once costs about 3MB of resident memory that stays after it closes (window and text machinery loaded on first use). Repeated opens do not add more.

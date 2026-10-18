@@ -17,7 +17,8 @@ switcher = list
 # are not, so list their bundle ids here, space separated. The line can repeat.
 # no_preview = com.example.vault com.example.notes
 
-# Menu bar item (on|off): the current desktop's key and the apps on it. Costs about 5MB of memory when on
+# Menu bar item: on (or strip) = the current desktop's key and a glyph per window, icon = only a small app icon,
+# off = none. Costs about 5MB of memory when on or icon. The app always shows an item (default on; off means icon).
 menubar = off
 
 # Keys that switch desktops with ⌥ (and move the focused window with ⌥⇧).
