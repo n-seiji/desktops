@@ -27,13 +27,13 @@ Download `just-desktops-<version>.app.zip` from [Releases](https://github.com/n-
 Homebrew (`brew install --cask n-seiji/tap/just-desktops`) is coming soon, once the tap exists.
 
 1. Open the app. It has no Dock icon. Its item is always in the menu bar.
-2. The build is ad-hoc signed and not notarized, so Gatekeeper blocks the first launch. On macOS 15 and later, right-click > Open no longer bypasses it. Open System Settings > Privacy & Security and choose Open Anyway for this app only. Before you do, check the download: compare `shasum -a 256 just-desktops-<version>.app.zip` with the `.sha256` file on the release, or run `gh attestation verify just-desktops-<version>.app.zip --repo n-seiji/just-desktops`. Download only from the Releases page (or the Homebrew tap once it exists). Do not turn Gatekeeper off with `spctl --master-disable`, and do not strip quarantine from other apps with `xattr -cr`.
+2. Releases signed with a Developer ID and notarized open normally. Older or ad-hoc signed builds are blocked by Gatekeeper on the first launch. On macOS 15 and later, right-click > Open no longer bypasses it. Open System Settings > Privacy & Security and choose Open Anyway for this app only. Before you do, check the download: compare `shasum -a 256 just-desktops-<version>.app.zip` with the `.sha256` file on the release, or run `gh attestation verify just-desktops-<version>.app.zip --repo n-seiji/just-desktops`. Download only from the Releases page (or the Homebrew tap once it exists). Do not turn Gatekeeper off with `spctl --master-disable`, and do not strip quarantine from other apps with `xattr -cr`.
 3. The first run explains the Accessibility permission. Click Open System Settings and turn it on. The app starts as soon as you do.
 4. Screen Recording is asked for only when the switcher is `square`.
 
 Click the menu bar item (right-click on the windows strip) for the menu: switcher style, focus border, menu bar style, Launch at Login, Open Config File and Quit. Choosing a setting writes that one line of the config and restarts the app. Windows parked on other desktops come back to the screen, as after any launch. Keys, modifier, pins and `no_preview` are edited in the config file.
 
-Ad-hoc signed apps are identified by their code hash, so macOS asks for these permissions again after every update.
+Ad-hoc signed apps are identified by their code hash, so macOS asks for these permissions again after every update. Developer ID signed apps keep them.
 
 The app and the launchd service below must not run together. The second instance exits at once.
 
