@@ -1,6 +1,6 @@
 #include "swkit.h"
 #include "cardmath.h"
-#include "extern.h"
+#include "skylight.h"
 #include "select.h"
 #include <dispatch/dispatch.h>
 #include <malloc/malloc.h>

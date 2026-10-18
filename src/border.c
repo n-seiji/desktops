@@ -1,6 +1,6 @@
 #include "jd.h"
 #include "border_geom.h"
-#include "extern.h"
+#include "skylight.h"
 #include <dlfcn.h>
 #include <math.h>
 

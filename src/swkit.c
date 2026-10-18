@@ -1,5 +1,5 @@
 #include "swkit.h"
-#include "extern.h"
+#include "skylight.h"
 #include <math.h>
 #include <stdlib.h>
 
