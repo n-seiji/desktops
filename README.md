@@ -5,39 +5,23 @@
   </picture>
 </h1>
 
-A tiny macOS daemon for workspaces, a window switcher and a focus border.
+<p><b>English</b> · <a href="README.ja.md">日本語</a></p>
 
-- Switch between up to 10 desktops with one key. macOS Spaces and SIP stay untouched.
-- Move a window to another desktop with Shift.
-- Switch windows with a Tab switcher: a list, a big square preview, or instant.
-- Draw a thin ring around the focused window.
-- Optionally show the windows on this desktop in the menu bar.
+Keyboard-driven desktops for macOS, in one small background process (about 8MB).
 
 <p align="center">
-  <img src="docs/images/switcher-square.png" width="520" alt="The square switcher (switcher = square): one window, a counter and a row of dots"><br>
-  <img src="docs/images/menubar.png" width="420" alt="The menu bar item (menubar = on): one glyph per window, a +4 slot and the desktop key in a box">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/overview-dark.svg">
+    <img src="assets/overview-light.svg" width="720" alt="A schematic macOS screen: desktop keys below it, the window switcher in the middle, a ring around the focused window and the menu bar item at the top right">
+  </picture>
 </p>
 
+1. **Desktops.** Press `⌥1`, `⌥2`, `⌥3`... to switch between up to 10 desktops. Add Shift to take the focused window with you. macOS Spaces and SIP are left alone.
+2. **Window switcher.** Hold `⌥` and press Tab to pick a window on this desktop. Shown as a list, a big preview, or not at all.
+3. **Focus ring.** A thin ring around the window you are typing in.
+4. **Menu bar.** Optional. One icon per window on this desktop, and the desktop number.
+
 ## Install
-
-### App
-
-Download `just-desktops-<version>.app.zip` from [Releases](https://github.com/n-seiji/just-desktops/releases), unzip it and move `just-desktops.app` to `/Applications`.
-
-Homebrew (`brew install --cask n-seiji/tap/just-desktops`) is coming soon, once the tap exists.
-
-1. Open the app. It has no Dock icon. Its item is always in the menu bar.
-2. Releases signed with a Developer ID and notarized open normally. Older or ad-hoc signed builds are blocked by Gatekeeper on the first launch. On macOS 15 and later, right-click > Open no longer bypasses it. Open System Settings > Privacy & Security and choose Open Anyway for this app only. Before you do, check the download: compare `shasum -a 256 just-desktops-<version>.app.zip` with the `.sha256` file on the release, or run `gh attestation verify just-desktops-<version>.app.zip --repo n-seiji/just-desktops`. Download only from the Releases page (or the Homebrew tap once it exists). Do not turn Gatekeeper off with `spctl --master-disable`, and do not strip quarantine from other apps with `xattr -cr`.
-3. The first run explains the Accessibility permission. Click Open System Settings and turn it on. The app starts as soon as you do.
-4. Screen Recording is asked for only when the switcher is `square`.
-
-Click the menu bar item (right-click on the windows strip) for the menu: switcher style, focus border, menu bar style, Launch at Login, Open Config File and Quit. Choosing a setting writes that one line of the config and restarts the app. Windows parked on other desktops come back to the screen, as after any launch. Keys, modifier, pins and `no_preview` are edited in the config file.
-
-Ad-hoc signed apps are identified by their code hash, so macOS asks for these permissions again after every update. Developer ID signed apps keep them.
-
-The app and the launchd service below must not run together. The second instance exits at once.
-
-### CLI
 
 ```sh
 mise use -g github:n-seiji/just-desktops
@@ -56,6 +40,8 @@ mise run unservice   # stop and unregister it
 Upgrading through mise changes the binary path. Run `mise run service` again and re-grant Accessibility.
 
 The service writes its log to `~/Library/Logs/just-desktops.log` (earlier versions used `/tmp/just-desktops.log`; `mise run service` rewrites the plist, and the old file can be deleted).
+
+**App: coming soon.** A signed and notarized `just-desktops.app` with a Homebrew cask, started and set up from the menu bar with no terminal. See [docs/app.md](docs/app.md).
 
 ## Quick start
 
@@ -101,6 +87,7 @@ com.apple.Safari = 1
 - [Switcher](docs/switcher.md): the three styles, the delay, Screen Recording, password managers.
 - [Menu bar](docs/menubar.md): glyphs, the `+k` panel, clicking.
 - [Workspaces](docs/workspaces.md): pins, pulling windows, the border, modifier conflicts.
+- [App](docs/app.md): the menu bar app, its menu and permissions (coming soon).
 
 ## Design
 
