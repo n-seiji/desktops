@@ -20,3 +20,4 @@ run title_test src/title.c -framework CoreFoundation
 run config_test src/config.c src/config_write.c
 run config_write_test src/config_write.c
 run select_test src/select.c
+run keyrules_test src/keyrules.c
