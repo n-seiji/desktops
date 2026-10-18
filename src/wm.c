@@ -496,18 +496,13 @@ int wm_window_ids(int dir, uint32_t **out, int *sel) {
     return n;
 }
 
-// Hands the menu bar item the switchable windows of this desktop: grouped by app in order of
-// each app's first window, an app's windows in tracking order, so focus changes never reorder.
-// At most MENUBAR_SLOTS get a glyph; with more, the last slot is the count of the rest.
-#define MENUBAR_SLOTS 10
-
-static void refresh_menubar(void) {
-    if (!config_menubar()) return;
-    win_t *f = focused(); // may track a window: before anything points into wins
+// The switchable windows of this desktop for the menu bar, grouped by app in order of each
+// app's first window, an app's windows in tracking order, so focus changes never reorder.
+// Returns the count; pids and wids hold up to 64.
+static int menubar_order(pid_t *pids, uint32_t *wids) {
     double now = CFAbsoluteTimeGetCurrent();
-    uint32_t front = now < fresh_until && fresh_wid ? fresh_wid : f ? f->wid : 0;
-    pid_t pids[64], vpid[64];
-    uint32_t wids[64], vwid[64];
+    pid_t vpid[64];
+    uint32_t vwid[64];
     int n = 0, nv = 0;
     CFArrayRef shown = shown_windows();
     for (int i = 0; i < nwins && nv < 64; i++) {
@@ -531,12 +526,56 @@ static void refresh_menubar(void) {
             wids[n++] = vwid[j];
         }
     }
-    int shown_n = n, over = 0;
+    return n;
+}
+
+// At most MENUBAR_SLOTS get a glyph; with more, the last slot is the count of the rest.
+#define MENUBAR_SLOTS 10
+
+static void refresh_menubar(void) {
+    if (!config_menubar()) return;
+    win_t *f = focused(); // may track a window: before anything points into wins
+    double now = CFAbsoluteTimeGetCurrent();
+    uint32_t front = now < fresh_until && fresh_wid ? fresh_wid : f ? f->wid : 0;
+    pid_t pids[64];
+    uint32_t wids[64];
+    int n = menubar_order(pids, wids), shown_n = n, over = 0;
+    uint32_t hash = 2166136261u; // FNV-1a of the hidden ids: tells the overflow list when it went stale
     if (n > MENUBAR_SLOTS) {
         shown_n = MENUBAR_SLOTS - 1;
         over = n - shown_n;
+        for (int i = shown_n; i < n; i++) hash = (hash ^ wids[i]) * 16777619u;
     }
-    menubar_update(cur, pids, wids, shown_n, over, front);
+    menubar_update(cur, pids, wids, shown_n, over, hash, front);
+}
+
+// The windows behind the menu bar's "+k" slot, in menu bar order, with +1 icon/app/title
+// as wm_windows has. *out is malloc'd; the caller releases and frees. Titles are labelled
+// across all of the desktop's windows, so an app with one hidden window and others shown
+// still gets its title.
+int wm_overflow(sw_entry_t **out) {
+    pid_t pids[64];
+    uint32_t wids[64];
+    int n = menubar_order(pids, wids), skip = MENUBAR_SLOTS - 1;
+    *out = NULL;
+    if (n <= skip + 1) return 0;
+    sw_entry_t *list = calloc(n, sizeof *list);
+    if (!list) return 0;
+    for (int i = 0; i < n; i++) {
+        win_t *w = find_wid(wids[i]);
+        CFStringRef app = apps_name(pids[i]), raw = w ? title_of(w->el) : NULL;
+        list[i] = (sw_entry_t){wids[i], pids[i], NULL, app, raw && app ? title_clean(raw, app) : NULL, false};
+        if (raw) CFRelease(raw);
+    }
+    label_entries(list, n);
+    for (int i = 0; i < skip; i++) {
+        if (list[i].app) CFRelease(list[i].app);
+        if (list[i].title) CFRelease(list[i].title);
+    }
+    memmove(list, list + skip, sizeof *list * (n - skip));
+    for (int i = 0; i < n - skip; i++) list[i].icon = apps_icon(list[i].pid, 36);
+    *out = list;
+    return n - skip;
 }
 
 void wm_focus_wid(uint32_t wid) {

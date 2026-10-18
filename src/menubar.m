@@ -8,7 +8,8 @@
 // Optional menu bar item: one line-art glyph per window on the current desktop (an app's
 // windows side by side), then the desktop's key in an outlined box at the right end. The
 // item grows and shrinks to the left, so the key stays where it is. The focused window's
-// glyph is cut out of a filled tile. Past MAX_SLOTS windows the last slot reads "+k".
+// glyph is cut out of a filled tile. Past MAX_SLOTS windows the last slot reads "+k"; a click
+// on it opens a popover listing the windows that have no glyph.
 // The image is a template, so macOS tints it for light and dark menu bars.
 
 enum {
@@ -38,6 +39,7 @@ static int nglyphs;
 static int last_ws;
 static int last_n = -1;
 static int last_over;
+static uint32_t last_hash;
 static pid_t last_pids[MAX_WINS];
 static uint32_t last_wids[MAX_WINS];
 static uint32_t last_front;
@@ -48,6 +50,182 @@ static int slot_at(CGFloat x, int n) {
     if (x < 0) return -1;
     int i = (int)(x / (SLOT + GAP));
     return i < n && x - i * (SLOT + GAP) < SLOT ? i : -1;
+}
+
+
+// The "+k" panel: one row per hidden window (icon, title) under a small arrow that points at
+// the slot. Drawn by hand in a single view, so a row costs no subview. Created on click and
+// released on close. (NSPopover is not used: on macOS 26 each one keeps a 5MB "RenderBox"
+// surface alive after it closes.)
+enum { ROW_H = 28, ROW_PAD = 6, ROW_ICON = 18, ROW_W = 280, MAX_ROWS = 14, ARROW = 7, CORNER = 10 };
+
+static void overflow_close(void);
+static double overflow_closed_at; // a click on the item closes the panel on mouse down, before the action runs
+
+@interface JDRows : NSView {
+    @public
+    sw_entry_t *rows;
+    int n, sel, top;
+    CGFloat arrow_x; // where the arrow points, in view coordinates
+}
+@end
+
+@implementation JDRows
+- (instancetype)initWithRows:(sw_entry_t *)r count:(int)count {
+    int vis = count < MAX_ROWS ? count : MAX_ROWS;
+    if (!(self = [super initWithFrame:NSMakeRect(0, 0, ROW_W, vis * ROW_H + 2 * ROW_PAD + ARROW)])) return nil;
+    rows = r;
+    n = count;
+    return self;
+}
+- (void)dealloc {
+    for (int i = 0; i < n; i++) {
+        if (rows[i].icon) CGImageRelease(rows[i].icon);
+        if (rows[i].app) CFRelease(rows[i].app);
+        if (rows[i].title) CFRelease(rows[i].title);
+    }
+    free(rows);
+}
+- (BOOL)isFlipped { return YES; }
+- (BOOL)acceptsFirstResponder { return YES; }
+- (BOOL)acceptsFirstMouse:(NSEvent *)e { (void)e; return YES; }
+- (int)visible { return n < MAX_ROWS ? n : MAX_ROWS; }
+- (void)select:(int)i {
+    sel = (i % n + n) % n;
+    if (sel < top) top = sel;
+    if (sel >= top + [self visible]) top = sel - [self visible] + 1;
+    [self setNeedsDisplay:YES];
+}
+- (void)choose:(int)i {
+    uint32_t wid = rows[i].wid;
+    overflow_close();
+    wm_focus_wid(wid);
+}
+- (void)drawRect:(NSRect)dirty {
+    (void)dirty;
+    NSRect body = NSMakeRect(0.5, ARROW + 0.5, ROW_W - 1, self.bounds.size.height - ARROW - 1);
+    NSBezierPath *bubble = [NSBezierPath bezierPathWithRoundedRect:body xRadius:CORNER yRadius:CORNER];
+    CGFloat ax = MAX(CORNER + ARROW, MIN(ROW_W - CORNER - ARROW, arrow_x));
+    [bubble moveToPoint:NSMakePoint(ax - ARROW, ARROW + 0.5)];
+    [bubble lineToPoint:NSMakePoint(ax, 0.5)];
+    [bubble lineToPoint:NSMakePoint(ax + ARROW, ARROW + 0.5)];
+    [bubble closePath];
+    [NSColor.windowBackgroundColor setFill];
+    [bubble fill];
+    [NSColor.separatorColor setStroke];
+    [bubble stroke];
+
+    NSMutableParagraphStyle *ps = [NSMutableParagraphStyle new];
+    ps.lineBreakMode = NSLineBreakByTruncatingTail;
+    for (int k = 0; k < [self visible]; k++) {
+        int i = top + k;
+        NSRect r = NSMakeRect(ROW_PAD, ARROW + ROW_PAD + k * ROW_H, ROW_W - 2 * ROW_PAD, ROW_H);
+        if (i == sel) {
+            [NSColor.selectedContentBackgroundColor setFill];
+            [[NSBezierPath bezierPathWithRoundedRect:r xRadius:5 yRadius:5] fill];
+        }
+        CGFloat x = r.origin.x + 6;
+        if (rows[i].icon) {
+            NSRect ir = NSMakeRect(x, r.origin.y + (ROW_H - ROW_ICON) / 2, ROW_ICON, ROW_ICON);
+            NSImage *img = [[NSImage alloc] initWithCGImage:rows[i].icon size:NSMakeSize(ROW_ICON, ROW_ICON)];
+            [img drawInRect:ir];
+        }
+        NSString *t = rows[i].title ? (__bridge NSString *)rows[i].title : @"Window";
+        NSDictionary *at = @{
+            NSFontAttributeName : [NSFont systemFontOfSize:13],
+            NSForegroundColorAttributeName : i == sel ? NSColor.alternateSelectedControlTextColor : NSColor.labelColor,
+            NSParagraphStyleAttributeName : ps,
+        };
+        CGFloat tx = x + ROW_ICON + 8, th = [t sizeWithAttributes:at].height;
+        [t drawInRect:NSMakeRect(tx, r.origin.y + (ROW_H - th) / 2, r.origin.x + r.size.width - 6 - tx, th) withAttributes:at];
+    }
+}
+- (int)rowAt:(NSEvent *)e {
+    NSPoint p = [self convertPoint:e.locationInWindow fromView:nil];
+    int k = (int)floor((p.y - ARROW - ROW_PAD) / ROW_H);
+    return k < 0 || k >= [self visible] ? -1 : top + k;
+}
+- (void)mouseMoved:(NSEvent *)e {
+    int i = [self rowAt:e];
+    if (i >= 0 && i != sel) [self select:i];
+}
+- (void)mouseUp:(NSEvent *)e {
+    int i = [self rowAt:e];
+    if (i >= 0) [self choose:i];
+}
+- (void)scrollWheel:(NSEvent *)e {
+    int most = n - [self visible];
+    if (most <= 0 || e.scrollingDeltaY == 0) return;
+    top = MAX(0, MIN(most, top + (e.scrollingDeltaY < 0 ? 1 : -1)));
+    [self setNeedsDisplay:YES];
+}
+- (void)updateTrackingAreas {
+    for (NSTrackingArea *a in self.trackingAreas) [self removeTrackingArea:a];
+    [self addTrackingArea:[[NSTrackingArea alloc] initWithRect:self.bounds
+                                                       options:NSTrackingMouseMoved | NSTrackingActiveAlways | NSTrackingInVisibleRect
+                                                         owner:self userInfo:nil]];
+    [super updateTrackingAreas];
+}
+- (void)keyDown:(NSEvent *)e {
+    BOOL shift = e.modifierFlags & NSEventModifierFlagShift;
+    switch (e.keyCode) {
+    case 125: [self select:sel + 1]; break;                  // down
+    case 126: [self select:sel - 1]; break;                  // up
+    case 48: [self select:sel + (shift ? -1 : 1)]; break;    // tab
+    case 36: case 76: [self choose:sel]; break;              // return, enter
+    case 53: overflow_close(); break;                    // esc
+    default: break;
+    }
+}
+@end
+
+@interface JDPanel : NSPanel <NSWindowDelegate>
+@end
+
+@implementation JDPanel
+- (BOOL)canBecomeKeyWindow { return YES; }
+- (void)windowDidResignKey:(NSNotification *)note {
+    (void)note;
+    overflow_close(); // a click elsewhere
+}
+@end
+
+static JDPanel *panel;
+
+static void overflow_close(void) {
+    if (!panel) return;
+    JDPanel *p = panel;
+    panel = nil;
+    overflow_closed_at = CFAbsoluteTimeGetCurrent();
+    p.delegate = nil;
+    [p orderOut:nil];
+    p.contentView = nil;
+}
+
+// slot: the "+k" slot in the button's coordinates.
+static void overflow_open(NSButton *b, NSRect slot) {
+    sw_entry_t *rows = NULL;
+    int n = wm_overflow(&rows);
+    if (n <= 0) return;
+    JDRows *view = [[JDRows alloc] initWithRows:rows count:n];
+    NSRect at = [b.window convertRectToScreen:[b convertRect:slot toView:nil]];
+    NSRect vis = b.window.screen.visibleFrame;
+    NSSize size = view.frame.size;
+    CGFloat x = MAX(NSMinX(vis) + 4, MIN(NSMaxX(vis) - size.width - 4, NSMidX(at) - size.width / 2));
+    view->arrow_x = NSMidX(at) - x;
+    panel = [[JDPanel alloc] initWithContentRect:NSMakeRect(x, NSMinY(at) - 2 - size.height, size.width, size.height)
+                                        styleMask:NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel
+                                          backing:NSBackingStoreBuffered
+                                            defer:NO];
+    panel.releasedWhenClosed = NO;
+    panel.opaque = NO;
+    panel.backgroundColor = NSColor.clearColor;
+    panel.hasShadow = YES;
+    panel.level = NSPopUpMenuWindowLevel;
+    panel.delegate = panel;
+    panel.contentView = view;
+    [panel makeKeyAndOrderFront:nil];
+    [panel makeFirstResponder:view];
 }
 
 @interface JDMenuTarget : NSObject
@@ -65,11 +243,23 @@ static int slot_at(CGFloat x, int n) {
         return;
     }
     if (last_n <= 0) return;
+    if (panel) {
+        overflow_close();
+        return;
+    }
     int slots = last_n + (last_over > 0);
     CGFloat strip = (slots + 1) * SLOT + slots * GAP;
     CGFloat x = [b convertPoint:e.locationInWindow fromView:nil].x - (b.bounds.size.width - strip) / 2;
     int i = slot_at(x, last_n);
-    if (i >= 0) wm_focus_wid(last_wids[i]);
+    if (i >= 0) {
+        wm_focus_wid(last_wids[i]);
+        return;
+    }
+    if (CFAbsoluteTimeGetCurrent() - overflow_closed_at < 0.4) return;
+    if (last_over > 0 && slot_at(x, last_n + 1) == last_n) {
+        CGFloat left = (b.bounds.size.width - strip) / 2 + last_n * (SLOT + GAP);
+        overflow_open(b, NSMakeRect(left, 0, SLOT, b.bounds.size.height));
+    }
 }
 - (void)quit:(id)sender {
     (void)sender;
@@ -309,14 +499,16 @@ void menubar_init(void) {
     [item.button sendActionOn:NSEventMaskLeftMouseUp | NSEventMaskRightMouseUp];
 }
 
-// n windows get a glyph (pids[i] owns wids[i]); over more are only counted. front is the
+// over_hash identifies the windows counted in over. n windows get a glyph (pids[i] owns wids[i]); over more are only counted. front is the
 // focused window's id, 0 for none.
-void menubar_update(int ws, const pid_t *pids, const uint32_t *wids, int n, int over, uint32_t front) {
+void menubar_update(int ws, const pid_t *pids, const uint32_t *wids, int n, int over, uint32_t over_hash, uint32_t front) {
     if (!item) return;
     if (n > MAX_WINS) n = MAX_WINS;
-    if (ws == last_ws && n == last_n && over == last_over && front == last_front &&
-        !memcmp(pids, last_pids, sizeof *pids * n) && !memcmp(wids, last_wids, sizeof *wids * n))
-        return;
+    bool same_set = ws == last_ws && n == last_n && over == last_over && over_hash == last_hash &&
+                    !memcmp(pids, last_pids, sizeof *pids * n) && !memcmp(wids, last_wids, sizeof *wids * n);
+    if (same_set && front == last_front) return;
+    if (!same_set) overflow_close(); // the list it shows is stale
+    last_hash = over_hash;
     last_ws = ws;
     last_n = n;
     last_over = over;
