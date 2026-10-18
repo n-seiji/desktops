@@ -199,7 +199,8 @@ static void overflow_close(void) {
     overflow_closed_at = CFAbsoluteTimeGetCurrent();
     p.delegate = nil;
     [p orderOut:nil];
-    p.contentView = nil;
+    // The click that closes it may be running inside the view: drop the view on the next turn, not now.
+    dispatch_async(dispatch_get_main_queue(), ^{ p.contentView = nil; });
 }
 
 // slot: the "+k" slot in the button's coordinates.
