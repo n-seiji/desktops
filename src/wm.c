@@ -1,5 +1,8 @@
 #include "jd.h"
 #include "extern.h"
+#include "order.h"
+#include "select.h"
+#include "shown.h"
 #include <dispatch/dispatch.h>
 #include <math.h>
 #include <stdlib.h>
@@ -45,7 +48,6 @@ static AXUIElementRef sys;
 // After a desktop change macOS hands activation from one parked window's app to the next,
 // about a second apart; each one extends the quiet period a user's Cmd-Tab has to wait out.
 #define SETTLE_S 1.5
-#define FRESH_S 0.3 // WindowServer takes about this long to list windows we just unparked
 
 static void ax_cb(AXObserverRef obs, AXUIElementRef el, CFStringRef n, void *ctx);
 static void refresh_menubar(win_t *f);
@@ -83,13 +85,7 @@ static void set_pos(AXUIElementRef el, CGPoint p) {
 }
 
 static CGPoint hide_point(void) {
-    CGRect b = CGDisplayBounds(CGMainDisplayID());
-    return CGPointMake(CGRectGetMaxX(b) - 1, CGRectGetMaxY(b) - 1);
-}
-
-static bool near_hide_point(CGPoint p) {
-    CGPoint h = hide_point();
-    return p.x >= h.x - 4 && p.y >= h.y - 64;
+    return shown_park_point(CGDisplayBounds(CGMainDisplayID()));
 }
 
 // ---- lookup ----
@@ -175,7 +171,7 @@ static win_t *track(app_t *a, AXUIElementRef el) {
 
     // A window left in the corner by a previous crash: bring it back.
     CGPoint p;
-    if (get_value(el, kAXPositionAttribute, kAXValueTypeCGPoint, &p) && near_hide_point(p)) {
+    if (get_value(el, kAXPositionAttribute, kAXValueTypeCGPoint, &p) && shown_is_parked(p, CGDisplayBounds(CGMainDisplayID()))) {
         CGRect b = CGDisplayBounds(CGMainDisplayID());
         set_pos(el, CGPointMake(b.origin.x + 40, b.origin.y + 60));
     }
@@ -449,6 +445,7 @@ static bool is_shown(CFArrayRef shown, uint32_t wid) {
     CGDirectDisplayID ds[8];
     uint32_t nd = 0;
     CGGetActiveDisplayList(8, ds, &nd);
+    CGRect bounds[8];
     for (CFIndex i = 0; i < CFArrayGetCount(shown); i++) {
         CFDictionaryRef d = CFArrayGetValueAtIndex(shown, i);
         int num = 0;
@@ -460,13 +457,8 @@ static bool is_shown(CFArrayRef shown, uint32_t wid) {
         CGRect r;
         CFDictionaryRef b = CFDictionaryGetValue(d, kCGWindowBounds);
         if (alpha <= 0 || !b || !CGRectMakeWithDictionaryRepresentation(b, &r)) return false;
-        for (uint32_t k = 0; k < nd; k++) {
-            CGRect v = CGRectIntersection(r, CGDisplayBounds(ds[k]));
-            if (!CGRectIsNull(v) && r.size.width > 0 && r.size.height > 0 &&
-                v.size.width >= fmin(r.size.width, 32) && v.size.height >= fmin(r.size.height, 32))
-                return true;
-        }
-        return false;
+        for (uint32_t k = 0; k < nd; k++) bounds[k] = CGDisplayBounds(ds[k]);
+        return shown_visible(alpha, r, bounds, nd);
     }
     return false;
 }
@@ -497,7 +489,7 @@ int wm_windows(int dir, sw_entry_t **out, int *sel) {
     }
     if (shown) CFRelease(shown);
     label_entries(list, n);
-    *sel = n ? (at < 0 ? (dir > 0 ? 0 : n - 1) : ((at + dir) % n + n) % n) : 0;
+    *sel = sel_start(at, dir, n);
     *out = list;
     return n;
 }
@@ -516,7 +508,7 @@ int wm_window_ids(int dir, uint32_t **out, int *sel) {
         ids[n++] = wins[i].wid;
     }
     if (shown) CFRelease(shown);
-    *sel = n ? (at < 0 ? (dir > 0 ? 0 : n - 1) : ((at + dir) % n + n) % n) : 0;
+    *sel = sel_start(at, dir, n);
     *out = ids;
     return n;
 }
@@ -528,46 +520,29 @@ static int menubar_order(pid_t *pids, uint32_t *wids) {
     double now = CFAbsoluteTimeGetCurrent();
     pid_t vpid[JD_MENUBAR_WINS];
     uint32_t vwid[JD_MENUBAR_WINS];
-    int n = 0, nv = 0;
+    int nv = 0;
     CFArrayRef shown = shown_windows();
     for (int i = 0; i < nwins && nv < JD_MENUBAR_WINS; i++) {
         win_t *w = &wins[i];
         if (w->ws != cur || w->hidden || w->minimized) continue;
-        bool listed = is_shown(shown, w->wid);
-        if (now - w->shown_at > FRESH_S) w->was_listed = listed;
-        else listed = listed || w->was_listed;
-        if (!listed) continue;
+        if (!shown_grace(is_shown(shown, w->wid), &w->was_listed, now, w->shown_at)) continue;
         vpid[nv] = w->pid;
         vwid[nv++] = w->wid;
     }
     if (shown) CFRelease(shown);
-    for (int i = 0; i < nv; i++) {
-        bool seen = false;
-        for (int j = 0; j < i && !seen; j++) seen = vpid[j] == vpid[i];
-        if (seen) continue;
-        for (int j = i; j < nv; j++) {
-            if (vpid[j] != vpid[i]) continue;
-            pids[n] = vpid[j];
-            wids[n++] = vwid[j];
-        }
-    }
-    return n;
+    order_group(vpid, vwid, nv, pids, wids);
+    return nv;
 }
 
 static void refresh_menubar(win_t *f) {
     if (!menubar_ready()) return; // apps_init runs before menubar_init: the first draw is wm_on_focus in main
     double now = CFAbsoluteTimeGetCurrent();
-    uint32_t front = now < fresh_until && fresh_wid ? fresh_wid : f ? f->wid : 0;
+    uint32_t front = shown_front(now, fresh_until, fresh_wid, f ? f->wid : 0);
     pid_t pids[JD_MENUBAR_WINS];
     uint32_t wids[JD_MENUBAR_WINS];
-    int n = menubar_order(pids, wids), shown_n = n, over = 0;
-    uint32_t hash = 2166136261u; // FNV-1a of the hidden ids: tells the overflow list when it went stale
-    if (n > JD_MENUBAR_SLOTS) {
-        shown_n = JD_MENUBAR_SLOTS - 1;
-        over = n - shown_n;
-        for (int i = shown_n; i < n; i++) hash = (hash ^ wids[i]) * 16777619u;
-    }
-    menubar_update(cur, pids, wids, shown_n, over, hash, front);
+    int n = menubar_order(pids, wids), shown_n, over;
+    order_split(n, JD_MENUBAR_SLOTS, &shown_n, &over);
+    menubar_update(cur, pids, wids, shown_n, over, order_hash(wids + shown_n, over), front);
 }
 
 // The windows behind the menu bar's "+k" slot, in menu bar order, with +1 icon/app/title
@@ -577,9 +552,10 @@ static void refresh_menubar(win_t *f) {
 int wm_overflow(sw_entry_t **out) {
     pid_t pids[JD_MENUBAR_WINS];
     uint32_t wids[JD_MENUBAR_WINS];
-    int n = menubar_order(pids, wids), skip = JD_MENUBAR_SLOTS - 1;
+    int n = menubar_order(pids, wids), skip, over;
+    order_split(n, JD_MENUBAR_SLOTS, &skip, &over);
     *out = NULL;
-    if (n <= skip + 1) return 0;
+    if (!over) return 0;
     sw_entry_t *list = calloc(n, sizeof *list);
     if (!list) return 0;
     for (int i = 0; i < n; i++) {
@@ -596,7 +572,7 @@ int wm_overflow(sw_entry_t **out) {
     memmove(list, list + skip, sizeof *list * (n - skip));
     for (int i = 0; i < n - skip; i++) list[i].icon = apps_icon(list[i].pid, 36);
     *out = list;
-    return n - skip;
+    return over;
 }
 
 void wm_focus_wid(uint32_t wid) {

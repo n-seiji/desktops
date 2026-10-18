@@ -1,4 +1,5 @@
 #include "jd.h"
+#include "keyrules.h"
 #include <dispatch/dispatch.h>
 
 // Hotkeys, with ⌥ standing for the base modifier (`modifier` in config: opt, cmd or ctrl; default opt):
@@ -14,11 +15,7 @@
 static CFMachPortRef tap;
 static CGEventFlags base; // the configured base modifier
 static bool armed; // switcher open (or about to be): ⌥ is held since a Tab
-// A held Tab repeats at the OS rate (~30ms), faster than a step is worth and than the focus calls of
-// `switcher = off` complete, so the selection would race around and keep moving after the release.
-// A repeat steps only when the last step is done and REPEAT_MS old; the rest are swallowed.
-#define REPEAT_MS 120
-static bool step_pending;
+static bool step_pending; // see keyrules_step_allowed: the rest of a held Tab's repeats are swallowed
 static uint64_t last_step_ns;
 
 static void commit(void) {
@@ -45,11 +42,9 @@ static CGEventRef on_key(CGEventTapProxy proxy, CGEventType type, CGEventRef ev,
         return NULL;
     }
 
-    CGEventFlags mods = CGEventGetFlags(ev) & (kCGEventFlagMaskAlternate | kCGEventFlagMaskShift |
-                                              kCGEventFlagMaskCommand | kCGEventFlagMaskControl);
-    bool alt = mods == base;
-    bool alt_shift = mods == (base | kCGEventFlagMaskShift);
-    if (!alt && !alt_shift) return ev;
+    mods_t mods = keyrules_mods(CGEventGetFlags(ev), base);
+    if (mods == MODS_OTHER) return ev;
+    bool alt = mods == MODS_BASE;
 
     int64_t key = CGEventGetIntegerValueField(ev, kCGKeyboardEventKeycode);
     bool repeat = CGEventGetIntegerValueField(ev, kCGKeyboardEventAutorepeat) != 0;
@@ -58,7 +53,7 @@ static CGEventRef on_key(CGEventTapProxy proxy, CGEventType type, CGEventRef ev,
         int dir = alt ? 1 : -1;
         armed = true;
         uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
-        if (repeat && (step_pending || now - last_step_ns < REPEAT_MS * NSEC_PER_MSEC)) return NULL;
+        if (!keyrules_step_allowed(repeat, step_pending, now, last_step_ns)) return NULL;
         last_step_ns = now;
         step_pending = true;
         dispatch_async(dispatch_get_main_queue(), ^{

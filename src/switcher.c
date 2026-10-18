@@ -1,5 +1,7 @@
 #include "swkit.h"
+#include "cardmath.h"
 #include "extern.h"
+#include "select.h"
 #include <dispatch/dispatch.h>
 #include <malloc/malloc.h>
 #include <math.h>
@@ -162,13 +164,8 @@ static void close_panel(void) {
 
 static void tick(void) {
     double k = (CFAbsoluteTimeGetCurrent() - t0) * 1000 / SLIDE_MS;
-    if (k >= 1) {
-        pos = sel;
-        stop_timer();
-    } else {
-        k = 1 - k;
-        pos = sel + (from_pos - sel) * k * k * k; // ease-out cubic
-    }
+    pos = cardmath_slide(from_pos, sel, k);
+    if (k >= 1) stop_timer();
     CGPoint o = hl_origin();
     SLSMoveWindow(cid, hwid, &o);
 }
@@ -188,7 +185,7 @@ static void open_panel(int dir) {
         return;
     }
     rows = n < MAX_ROWS ? n : MAX_ROWS;
-    top = sel < rows ? 0 : sel - rows + 1;
+    top = sel_top(0, sel, rows);
     pos = from_pos = sel;
     size = CGSizeMake(fit_width(), HEADER_H + rows * ROW_H + ROW_INSET);
     CGRect d = CGDisplayBounds(CGMainDisplayID());
@@ -219,10 +216,9 @@ static void panel_step(int dir) {
         return;
     }
     from_pos = pos;
-    sel = ((sel + dir) % n + n) % n;
+    sel = sel_wrap(sel + dir, n);
     int old = top;
-    if (sel < top) top = sel;
-    else if (sel >= top + rows) top = sel - rows + 1;
+    top = sel_top(top, sel, rows);
     if (top != old) {
         draw(ctx);
         CGContextFlush(ctx);
@@ -295,12 +291,12 @@ static void instant_end(void) {
 
 static void instant_step(int dir) {
     if (!snap) {
-        int sel;
-        snap_n = wm_window_ids(dir, &snap, &sel);
-        snap_at = sel;
+        int start;
+        snap_n = wm_window_ids(dir, &snap, &start);
+        snap_at = start;
         if (!snap_n) instant_end();
     } else {
-        snap_at = ((snap_at + dir) % snap_n + snap_n) % snap_n;
+        snap_at = sel_wrap(snap_at + dir, snap_n);
     }
     if (snap) wm_focus_wid(snap[snap_at]);
 }
@@ -340,8 +336,8 @@ void switcher_commit(void) {
     stop_delay();
     waiting = false;
     uint32_t *ids = NULL;
-    int sel, count = wm_window_ids(first_dir, &ids, &sel);
-    if (count) wm_focus_wid(ids[((sel + extra) % count + count) % count]);
+    int start, count = wm_window_ids(first_dir, &ids, &start);
+    if (count) wm_focus_wid(ids[sel_wrap(start + extra, count)]);
     free(ids);
 }
 
