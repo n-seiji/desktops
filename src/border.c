@@ -188,7 +188,7 @@ void border_show(CGRect frame, uint32_t target_wid) {
     if (CGGetDisplaysWithRect(frame, 1, &d, &n) == kCGErrorSuccess && n) outer = CGRectIntersection(outer, CGDisplayBounds(d));
     bool same = shown && target_wid == last_target;
     bool resized = !same || !CGSizeEqualToSize(outer.size, last_outer.size);
-    if (resized) radius = window_radius(target_wid);
+    if (!same) radius = window_radius(target_wid);
     if (outer.size.width < 2 * edge_thickness() || outer.size.height < 2 * edge_thickness()) {
         border_hide();
         return;
