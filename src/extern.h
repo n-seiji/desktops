@@ -31,4 +31,5 @@ extern void _CFMachPortSetOptions(CFMachPortRef port, int options);
 extern CFTypeRef SLSWindowQueryWindows(int cid, CFArrayRef windows, int count);
 extern CFTypeRef SLSWindowQueryResultCopyWindows(CFTypeRef query);
 extern bool SLSWindowIteratorAdvance(CFTypeRef iterator);
-extern CFArrayRef SLSWindowIteratorGetCornerRadii(CFTypeRef iterator); // four CFNumbers, in points
+// SLSWindowIteratorGetCornerRadii (four CFNumbers, in points) is looked up at run time: older macOS does not export it.
+typedef CFArrayRef (*corner_radii_fn)(CFTypeRef iterator);

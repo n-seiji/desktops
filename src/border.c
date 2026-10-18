@@ -1,5 +1,6 @@
 #include "jd.h"
 #include "extern.h"
+#include <dlfcn.h>
 #include <math.h>
 
 // A thin white ring drawn directly through SkyLight (no AppKit), floating
@@ -46,13 +47,20 @@ static CGFloat edge_thickness(void) { return radius + RING_OUTSET; }
 // The corner radius WindowServer applies to the window; it is 16 for most, 20 to 26 for newer styles.
 static CGFloat window_radius(uint32_t wid) {
     CGFloat r = DEFAULT_RADIUS;
+    static corner_radii_fn get_radii;
+    static bool looked_up;
+    if (!looked_up) {
+        get_radii = (corner_radii_fn)dlsym(RTLD_DEFAULT, "SLSWindowIteratorGetCornerRadii");
+        looked_up = true;
+    }
+    if (!get_radii) return r;
     int n = (int)wid;
     CFNumberRef num = CFNumberCreate(NULL, kCFNumberIntType, &n);
     CFArrayRef ids = CFArrayCreate(NULL, (const void **)&num, 1, &kCFTypeArrayCallBacks);
     CFTypeRef query = SLSWindowQueryWindows(cid, ids, 1);
     CFTypeRef it = query ? SLSWindowQueryResultCopyWindows(query) : NULL;
     if (it && SLSWindowIteratorAdvance(it)) {
-        CFArrayRef radii = SLSWindowIteratorGetCornerRadii(it);
+        CFArrayRef radii = get_radii(it);
         CGFloat v;
         if (radii && CFArrayGetCount(radii) > 0 && CFNumberGetValue(CFArrayGetValueAtIndex(radii, 0), kCFNumberCGFloatType, &v))
             r = fmin(fmax(v, 0), 64);
