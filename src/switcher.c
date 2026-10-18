@@ -339,10 +339,10 @@ void switcher_commit(void) {
     }
     stop_delay();
     waiting = false;
-    sw_entry_t *list = NULL;
-    int sel, count = wm_windows(first_dir, &list, &sel);
-    if (count) wm_focus_wid(list[((sel + extra) % count + count) % count].wid);
-    sw_free_entries(list, count);
+    uint32_t *ids = NULL;
+    int sel, count = wm_window_ids(first_dir, &ids, &sel);
+    if (count) wm_focus_wid(ids[((sel + extra) % count + count) % count]);
+    free(ids);
 }
 
 void switcher_cancel(void) {
