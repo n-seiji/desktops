@@ -1,14 +1,15 @@
-// Offscreen contact sheet of the menu bar glyphs: tests/glyph_sheet.m includes src/menubar.m
-// so it renders the exact masks the daemon builds. Usage: glyph_sheet out.png [App.app ...]
-#include "../src/menubar.m"
+// Offscreen contact sheet of the menu bar glyphs: tests/glyph_sheet.m includes src/menubar_glyph.m
+// so it renders the exact masks the daemon builds.
+// Build: clang -fobjc-arc -framework AppKit tests/glyph_sheet.m src/glyph.c -o bin/glyph_sheet
+// Usage: bin/glyph_sheet out.png [App.app ...]
+#include "../src/menubar_glyph.m"
 
 CGImageRef apps_icon(pid_t pid, int px) {
     (void)pid; (void)px;
     return NULL;
 }
-char config_key_char(int i) { return (char)('1' + i); }
 
-enum { Z = 5, CELL = GLYPH_PX * Z / 2 + 16 };
+enum { PAD = 1, Z = 5, CELL = GLYPH_PX * Z / 2 + 16 }; // PAD: tile edge to glyph, as in menubar.m
 
 static CGImageRef icon_at(NSString *path, int px, NSString **bid) {
     NSBundle *b = [NSBundle bundleWithPath:path];
