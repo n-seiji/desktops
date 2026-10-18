@@ -32,6 +32,14 @@ static void check_switcher(const char *v, sw_style_t want) {
     }
 }
 
+static void check_menubar(const char *v, menubar_mode_t want) {
+    menubar_mode_t got = config_parse_menubar(v);
+    if (got != want) {
+        printf("FAIL config_parse_menubar(\"%s\") = %d; want %d\n", v, got, want);
+        failed++;
+    }
+}
+
 static void check_modifier(const char *v, CGEventFlags want) {
     CGEventFlags got = config_parse_modifier(v);
     if (got != want) {
@@ -128,6 +136,13 @@ int main(void) {
     check_modifier("hyper", kCGEventFlagMaskAlternate);
     check_modifier("garbage", kCGEventFlagMaskAlternate);
     check_modifier("", kCGEventFlagMaskAlternate);
+    check_menubar("on", MB_STRIP);
+    check_menubar("strip", MB_STRIP);
+    check_menubar("true", MB_STRIP);
+    check_menubar("icon", MB_ICON);
+    check_menubar("off", MB_OFF);
+    check_menubar("garbage", MB_OFF);
+    check_menubar("", MB_OFF);
     check_on("on", true);
     check_on("true", true);
     check_on("yes", true);
@@ -155,6 +170,34 @@ int main(void) {
     check("", 0, NULL);
     check("tab esc", 0, NULL);
     check("1 2 3 4 5 6 7 8 9 0 q w", 10, (int[]){0x12, 0x13, 0x14, 0x15, 0x17, 0x16, 0x1A, 0x1C, 0x19, 0x1D});
+    // menubar default and the app's rule that there is always an item
+    static const struct { bool app; const char *file; menubar_mode_t want; } mb[] = {
+        {false, NULL, MB_OFF}, {false, "menubar = on\n", MB_STRIP}, {false, "menubar = icon\n", MB_ICON},
+        {false, "menubar = off\n", MB_OFF}, {true, NULL, MB_STRIP}, {true, "menubar = off\n", MB_ICON},
+        {true, "menubar = icon\n", MB_ICON}, {true, "menubar = strip\n", MB_STRIP},
+    };
+    for (size_t i = 0; i < sizeof mb / sizeof *mb; i++) {
+        char home[] = "/tmp/jd_config_mb.XXXXXX", cmd[256];
+        if (!mkdtemp(home)) return 1;
+        snprintf(path, sizeof path, "%s/.config/just-desktops", home);
+        snprintf(cmd, sizeof cmd, "mkdir -p '%s'", path);
+        if (system(cmd)) return 1;
+        if (mb[i].file) {
+            snprintf(path, sizeof path, "%s/.config/just-desktops/config", home);
+            f = fopen(path, "w");
+            fputs(mb[i].file, f);
+            fclose(f);
+        }
+        setenv("HOME", home, 1);
+        config_set_app_mode(mb[i].app);
+        config_load();
+        if (config_menubar() != mb[i].want) {
+            printf("FAIL app=%d menubar file %s: config_menubar() = %d; want %d\n", mb[i].app, mb[i].file ? mb[i].file : "(none)", config_menubar(), mb[i].want);
+            failed++;
+        }
+        snprintf(cmd, sizeof cmd, "rm -rf '%s'", home);
+        if (system(cmd)) failed++;
+    }
     puts(failed ? "FAILED" : "ok");
     return failed != 0;
 }

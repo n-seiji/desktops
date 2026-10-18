@@ -29,7 +29,7 @@ typedef struct {
 } glyph_t;
 
 static NSStatusItem *item;
-static NSMenu *menu;
+static menubar_mode_t mode;
 static glyph_t *glyphs;
 static int nglyphs;
 
@@ -226,9 +226,15 @@ static void overflow_open(NSButton *b, NSRect slot) {
     [panel makeFirstResponder:view];
 }
 
+static NSMenu *build_menu(void);
+
 @interface JDMenuTarget : NSObject
 - (void)clicked:(id)sender;
 - (void)quit:(id)sender;
+- (void)set:(NSMenuItem *)sender;
+- (void)toggleLogin:(id)sender;
+- (void)openConfig:(id)sender;
+- (void)about:(id)sender;
 @end
 
 @implementation JDMenuTarget
@@ -236,8 +242,11 @@ static void overflow_open(NSButton *b, NSRect slot) {
     NSButton *b = sender;
     NSEvent *e = NSApp.currentEvent;
     if (!e) return;
-    if (e.type == NSEventTypeRightMouseUp || e.modifierFlags & NSEventModifierFlagControl) {
-        [menu popUpMenuPositioningItem:nil atLocation:NSMakePoint(0, b.bounds.size.height + 6) inView:b];
+    if (mode == MB_ICON || e.type == NSEventTypeRightMouseUp || e.modifierFlags & NSEventModifierFlagControl) {
+        // The status item places its own menu under itself; detached again at once so left clicks reach clicked: next time.
+        item.menu = build_menu();
+        [b performClick:nil];
+        item.menu = nil;
         return;
     }
     if (last_n <= 0) return;
@@ -263,9 +272,84 @@ static void overflow_open(NSButton *b, NSRect slot) {
     (void)sender;
     jd_quit();
 }
+// representedObject is @[key, value]: write that one line of the config file and restart.
+- (void)set:(NSMenuItem *)sender {
+    NSArray<NSString *> *kv = sender.representedObject;
+    app_set(kv[0].UTF8String, kv[1].UTF8String);
+}
+- (void)toggleLogin:(id)sender {
+    (void)sender;
+    app_toggle_login();
+}
+- (void)openConfig:(id)sender {
+    (void)sender;
+    app_open_config();
+}
+- (void)about:(id)sender {
+    (void)sender;
+    app_open_about();
+}
 @end
 
 static JDMenuTarget *target;
+
+static NSMenuItem *add_item(NSMenu *m, NSString *title, SEL action, NSControlStateValue state, NSString *key, NSString *value) {
+    NSMenuItem *it = [m addItemWithTitle:title action:action keyEquivalent:@""];
+    it.target = target;
+    it.state = state;
+    if (key) it.representedObject = @[ key, value ];
+    return it;
+}
+
+static NSMenuItem *add_choice(NSMenu *m, NSString *title, bool current, NSString *key, NSString *value) {
+    return add_item(m, title, @selector(set:), current ? NSControlStateValueOn : NSControlStateValueOff, key, value);
+}
+
+// Built on every open, so the checks match the settings in force and the login item's state.
+// The bare binary keeps its one-item menu; the rest is for the app.
+static NSMenu *build_menu(void) {
+    NSMenu *m = [NSMenu new];
+    if (jd_app_mode()) {
+        sw_style_t sw = config_switcher_style();
+        NSMenu *sws = [NSMenu new];
+        add_choice(sws, @"List", sw == SW_LIST, @"switcher", @"list");
+        add_choice(sws, @"Square", sw == SW_SQUARE, @"switcher", @"square");
+        add_choice(sws, @"Instant (off)", sw == SW_OFF, @"switcher", @"off");
+        [m setSubmenu:sws forItem:[m addItemWithTitle:@"Switcher" action:nil keyEquivalent:@""]];
+
+        add_choice(m, @"Focus border", config_border(), @"border", config_border() ? @"off" : @"on");
+
+        NSMenu *mbs = [NSMenu new];
+        add_choice(mbs, @"Windows strip", mode == MB_STRIP, @"menubar", @"on");
+        add_choice(mbs, @"Icon only", mode == MB_ICON, @"menubar", @"icon");
+        [m setSubmenu:mbs forItem:[m addItemWithTitle:@"Menu bar" action:nil keyEquivalent:@""]];
+
+        [m addItem:NSMenuItem.separatorItem];
+        int login = app_login_state();
+        add_item(m, @"Launch at Login", @selector(toggleLogin:),
+                 login == 1 ? NSControlStateValueOn : login == 2 ? NSControlStateValueMixed : NSControlStateValueOff, nil, nil);
+        add_item(m, @"Open Config File", @selector(openConfig:), NSControlStateValueOff, nil, nil);
+        [m addItem:NSMenuItem.separatorItem];
+        add_item(m, [NSString stringWithFormat:@"About just-desktops %s", JD_VERSION], @selector(about:), NSControlStateValueOff, nil, nil);
+    }
+    add_item(m, @"Quit just-desktops", @selector(quit:), NSControlStateValueOff, nil, nil);
+    return m;
+}
+
+// The app glyph of icon mode, from the logo mark: a rounded outline with a filled rounded square inside.
+static NSImage *icon_image(void) {
+    NSImage *img = [NSImage imageWithSize:NSMakeSize(18, 18) flipped:NO drawingHandler:^BOOL(NSRect r) {
+        (void)r;
+        [NSColor.blackColor set];
+        NSBezierPath *outer = [NSBezierPath bezierPathWithRoundedRect:NSMakeRect(2.25, 2.25, 13.5, 13.5) xRadius:3.5 yRadius:3.5];
+        outer.lineWidth = 1.5;
+        [outer stroke];
+        [[NSBezierPath bezierPathWithRoundedRect:NSMakeRect(5.5, 5.5, 7, 7) xRadius:1.8 yRadius:1.8] fill];
+        return YES;
+    }];
+    img.template = YES;
+    return img;
+}
 
 // White glyph for an app icon: the tile behind the symbol disappears. The tile is the
 // icon's most common colour; a pixel's alpha is how far its colour is from that
@@ -483,24 +567,23 @@ static void render(int ws, const pid_t *pids, const uint32_t *wids, int n, int o
 }
 
 
-void menubar_init(void) {
+void menubar_init(menubar_mode_t m) {
+    mode = m;
     [NSApplication sharedApplication];
     [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
     target = [JDMenuTarget new];
-    menu = [NSMenu new];
-    NSMenuItem *quit = [menu addItemWithTitle:@"Quit just-desktops" action:@selector(quit:) keyEquivalent:@""];
-    quit.target = target;
     item = [NSStatusBar.systemStatusBar statusItemWithLength:NSVariableStatusItemLength];
-    // No permanent menu: it would swallow left clicks. It opens on a right or control click.
+    // No permanent menu: it would swallow left clicks on the strip. It opens on a right or control click, and on any click in icon mode.
     item.button.target = target;
     item.button.action = @selector(clicked:);
     [item.button sendActionOn:NSEventMaskLeftMouseUp | NSEventMaskRightMouseUp];
+    if (mode == MB_ICON) item.button.image = icon_image();
 }
 
 // over_hash identifies the windows counted in over. n windows get a glyph (pids[i] owns wids[i]); over more are only counted. front is the
 // focused window's id, 0 for none.
 void menubar_update(int ws, const pid_t *pids, const uint32_t *wids, int n, int over, uint32_t over_hash, uint32_t front) {
-    if (!item) return;
+    if (!item || mode != MB_STRIP) return;
     if (n > JD_MENUBAR_SLOTS) n = JD_MENUBAR_SLOTS;
     bool same_set = ws == last_ws && n == last_n && over == last_over && over_hash == last_hash &&
                     !memcmp(pids, last_pids, sizeof *pids * n) && !memcmp(wids, last_wids, sizeof *wids * n);
@@ -519,7 +602,7 @@ void menubar_update(int ws, const pid_t *pids, const uint32_t *wids, int n, int 
 }
 
 bool menubar_ready(void) {
-    return item != nil;
+    return item != nil && mode == MB_STRIP;
 }
 
 void menubar_forget(pid_t pid) {

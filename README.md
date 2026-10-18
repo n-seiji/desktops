@@ -26,14 +26,14 @@ Download `just-desktops-<version>.app.zip` from [Releases](https://github.com/n-
 
 Homebrew (`brew install --cask n-seiji/tap/just-desktops`) is coming soon, once the tap exists.
 
-1. Open the app. It has no Dock icon. With `menubar = on` it shows in the menu bar.
+1. Open the app. It has no Dock icon. Its item is always in the menu bar.
 2. The build is ad-hoc signed and not notarized. Right-click the app and choose Open. On macOS 15 and later, use System Settings > Privacy & Security > Open Anyway.
-3. Allow it under System Settings > Privacy & Security > Accessibility. It starts as soon as you grant this.
-4. Screen Recording is asked for only when the config has `switcher = square`.
+3. The first run explains the Accessibility permission. Click Open System Settings and turn it on. The app starts as soon as you do.
+4. Screen Recording is asked for only when the switcher is `square`.
+
+Click the menu bar item (right-click on the windows strip) for the menu: switcher style, focus border, menu bar style, Launch at Login, Open Config File and Quit. Choosing a setting writes that one line of the config and restarts the app. Windows parked on other desktops come back to the screen, as after any launch. Keys, modifier, pins and `no_preview` are edited in the config file.
 
 Ad-hoc signed apps are identified by their code hash, so macOS asks for these permissions again after every update.
-
-To start at login, add the app under System Settings > General > Login Items. To quit, run `pkill just-desktops`, or use Quit in the right-click menu of the menu bar item.
 
 The app and the launchd service below must not run together. The second instance exits at once.
 
@@ -82,7 +82,7 @@ File: `~/.config/just-desktops/config`. See [config.example](config.example).
 |---|---|---|---|
 | `border` | `on`, `off` | `on` | Ring around the focused window. `off` creates no border window |
 | `switcher` | `list`, `square`, `off` | `list` | Tab switcher style. `on` means `list`, unknown values too |
-| `menubar` | `on`, `off` | `off` | Menu bar item with one glyph per window |
+| `menubar` | `on` (or `strip`), `icon`, `off` | `off` (app: `on`) | Menu bar item: one glyph per window, or only a small app icon. The app always has an item, so `off` means `icon` there |
 | `keys` | up to 10 digits or letters | `1 2 3 q w e` | The n-th key is Desktop n |
 | `modifier` | `opt`, `cmd`, `ctrl` | `opt` | Base modifier of every hotkey. See [modifier](docs/workspaces.md#modifier) |
 | `no_preview` | bundle ids | none | Apps the square switcher never screenshots. Repeatable |
@@ -103,7 +103,7 @@ com.apple.Safari = 1
 ## Design
 
 - **One process.** Workspaces, the switcher and the border live in one daemon.
-- **Mostly C.** The Objective-C is `src/apps.m` (app launch, quit and activation events) and `src/menubar.m` (the status item, created only when `menubar = on`).
+- **Mostly C.** The Objective-C is `src/apps.m` (app launch, quit and activation events) and `src/menubar.m` (the status item, created only when `menubar` is not `off`; `src/app.m` is the app's first-run panel, login item and config helpers).
 - **Border through SkyLight**, like JankyBorders, so no NSWindow is created.
 - **Hotkeys through a CGEventTap** on the main run loop. No extra threads.
 

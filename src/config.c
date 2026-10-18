@@ -9,7 +9,7 @@
 //   border = on|off
 //   switcher = list|square|off   (⌥Tab window switcher; on = list; off = switch at once, no panel)
 //   modifier = opt|cmd|ctrl   (base modifier of every hotkey, default opt; aliases option, alt, command, control)
-//   menubar = on|off      (menu bar item: current desktop and its apps)
+//   menubar = on|icon|off (menu bar item: on/strip = windows and the desktop key, icon = app glyph only; the app treats off as icon)
 //   keys = 1 2 3 q w e    (digits and letters; the n-th key is Desktop n)
 //   no_preview = <bundle id> [<bundle id> ...]   (apps the square switcher never screenshots; repeatable)
 //   <bundle id> = <desktop number>
@@ -23,7 +23,8 @@ static nopreview_t *extra; // no_preview entries from the config file, on top of
 static int nextra;
 static bool border = true;
 static sw_style_t switcher = SW_LIST;
-static bool menubar = false;
+static menubar_mode_t menubar = MB_OFF;
+static bool app_mode;
 static CGEventFlags modifier = kCGEventFlagMaskAlternate;
 static int keys[JD_MAX_WS] = {0x12, 0x13, 0x14, 0x0C, 0x0D, 0x0E}; // 1 2 3 q w e
 static int nkeys = 6;
@@ -85,10 +86,17 @@ CGEventFlags config_parse_modifier(const char *v) {
     return kCGEventFlagMaskAlternate;
 }
 
+menubar_mode_t config_parse_menubar(const char *v) {
+    if (!strcmp(v, "icon")) return MB_ICON;
+    return config_parse_on(v) || !strcmp(v, "strip") ? MB_STRIP : MB_OFF;
+}
+
+void config_set_app_mode(bool app) { app_mode = app; }
+
 void config_load(void) {
-    const char *home = getenv("HOME");
+    menubar = app_mode ? MB_STRIP : MB_OFF;
     char path[1024];
-    snprintf(path, sizeof path, "%s/.config/just-desktops/config", home ? home : "");
+    config_path(path, sizeof path);
     FILE *f = fopen(path, "r");
     if (!f) return;
 
@@ -116,7 +124,7 @@ void config_load(void) {
             continue;
         }
         if (!strcmp(k, "menubar")) {
-            menubar = config_parse_on(v);
+            menubar = config_parse_menubar(v);
             continue;
         }
         if (!strcmp(k, "keys")) {
@@ -155,6 +163,7 @@ void config_load(void) {
     }
     free(line);
     fclose(f);
+    if (app_mode && menubar == MB_OFF) menubar = MB_ICON;
 }
 
 int config_assign(const char *bundle_id) {
@@ -177,7 +186,7 @@ bool config_border(void) { return border; }
 
 sw_style_t config_switcher_style(void) { return switcher; }
 
-bool config_menubar(void) { return menubar; }
+menubar_mode_t config_menubar(void) { return menubar; }
 
 CGEventFlags config_modifier(void) { return modifier; }
 
