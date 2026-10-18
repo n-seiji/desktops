@@ -12,6 +12,12 @@
 
 static CFMachPortRef tap;
 static bool armed; // switcher open (or about to be): ⌥ is held since a Tab
+// A held Tab repeats at the OS rate (~30ms), faster than a step is worth and than the focus calls of
+// `switcher = off` complete, so the selection would race around and keep moving after the release.
+// A repeat steps only when the last step is done and REPEAT_MS old; the rest are swallowed.
+#define REPEAT_MS 120
+static bool step_pending;
+static uint64_t last_step_ns;
 
 static void commit(void) {
     armed = false;
@@ -49,7 +55,14 @@ static CGEventRef on_key(CGEventTapProxy proxy, CGEventType type, CGEventRef ev,
     if (key == KEY_TAB) {
         int dir = alt ? 1 : -1;
         armed = true;
-        dispatch_async(dispatch_get_main_queue(), ^{ switcher_step(dir); });
+        uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        if (repeat && (step_pending || now - last_step_ns < REPEAT_MS * NSEC_PER_MSEC)) return NULL;
+        last_step_ns = now;
+        step_pending = true;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            switcher_step(dir);
+            step_pending = false;
+        });
         return NULL;
     }
     for (int i = 0; i < config_workspaces(); i++) {
