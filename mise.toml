@@ -54,11 +54,16 @@ run = '''
 set -eu
 bin="$(mise which just-desktops 2>/dev/null || true)"
 [ -n "$bin" ] || { echo "install first: mise use -g github:n-seiji/just-desktops" >&2; exit 1; }
-plist="$HOME/Library/LaunchAgents/com.just-desktops.plist"
+plist="${JD_PLIST_OUT:-$HOME/Library/LaunchAgents/com.just-desktops.plist}"
+log="$HOME/Library/Logs/just-desktops.log"
+mkdir -p "$HOME/Library/Logs" "$(dirname "$plist")"
+scripts/service-plist.sh "$bin" "$log" > "$plist.tmp"
+plutil -lint "$plist.tmp" >/dev/null
+mv "$plist.tmp" "$plist"
+[ -z "${JD_PLIST_OUT:-}" ] || { echo "wrote $plist (not loaded)"; exit 0; }
 launchctl bootout "gui/$(id -u)/com.just-desktops" 2>/dev/null || true
-sed "s|@BIN@|$bin|" launchd/com.just-desktops.plist > "$plist"
 launchctl bootstrap "gui/$(id -u)" "$plist"
-echo "registered: $bin"
+echo "registered: $bin (log: $log)"
 '''
 
 [tasks.unservice]
