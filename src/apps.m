@@ -1,5 +1,6 @@
 #import <AppKit/AppKit.h>
-#include "jd.h"
+#include "apps.h"
+#include "wm.h"
 
 // The only Objective-C in the project: NSWorkspace app launch / quit / activate events.
 

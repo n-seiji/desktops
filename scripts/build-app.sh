@@ -6,8 +6,8 @@ set -eu
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 
-version="$(sed -n 's/^#define JD_VERSION "\(.*\)"$/\1/p' src/jd.h)"
-[ -n "$version" ] || { echo "JD_VERSION not found in src/jd.h" >&2; exit 1; }
+version="$(sed -n 's/^#define JD_VERSION "\(.*\)"$/\1/p' src/common.h)"
+[ -n "$version" ] || { echo "JD_VERSION not found in src/common.h" >&2; exit 1; }
 
 app=dist/just-desktops.app
 rm -rf "$app"

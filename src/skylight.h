@@ -1,5 +1,7 @@
 #pragma once
-// Private SkyLight / HIServices APIs (same family JankyBorders and yabai use).
+// Every private API the project calls, in one place (the same family JankyBorders and yabai use).
+// Window creation, drawing, ordering and notifications go through SkyLight; the AX element to window
+// id lookup is HIServices, listed here with the rest because it is private too.
 #include <ApplicationServices/ApplicationServices.h>
 
 extern AXError _AXUIElementGetWindow(AXUIElementRef element, uint32_t *wid);
@@ -11,7 +13,6 @@ extern CGError SLSSetWindowShape(int cid, uint32_t wid, float x_offset, float y_
 extern CGError SLSSetWindowResolution(int cid, uint32_t wid, double resolution);
 extern CGError SLSSetWindowOpacity(int cid, uint32_t wid, bool is_opaque);
 extern CGError SLSReleaseWindow(int cid, uint32_t wid);
-extern CGError SLSSetWindowTransform(int cid, uint32_t wid, CGAffineTransform t);
 extern CGError SLSSetWindowAlpha(int cid, uint32_t wid, float alpha);
 extern CGError SLSSetWindowLevel(int cid, uint32_t wid, int level);
 extern CGError SLSGetWindowLevel(int cid, uint32_t wid, int *level);

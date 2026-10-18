@@ -103,7 +103,7 @@ com.apple.Safari = 1
 ## Design
 
 - **One process.** Workspaces, the switcher and the border live in one daemon.
-- **Mostly C.** The Objective-C is `src/apps.m` (app launch, quit and activation events) and `src/menubar.m` (the status item, created only when `menubar` is not `off`; `src/app.m` is the app's first-run panel, login item and config helpers).
+- **Mostly C.** The Objective-C is `src/apps.m` (app launch, quit and activation events) and `src/menubar*.m` (the status item and its panel and menu, created only when `menubar` is not `off`; `src/app.m` is the app's first-run panel, login item and config helpers).
 - **Border through SkyLight**, like JankyBorders, so no NSWindow is created.
 - **Hotkeys through a CGEventTap** on the main run loop. No extra threads.
 
@@ -124,7 +124,7 @@ The switcher memory is released when you let go of `⌥`. More in [switcher](doc
 
 ## Development
 
-Needs the Xcode Command Line Tools and [mise](https://mise.jdx.dev). Use `mise run build`, `mise run run` (build and run in the foreground), `mise run test` and `mise run test-san` (the same tests under the address and undefined behaviour sanitizers). `scripts/footprint.sh [config-file] [seconds]` prints the idle footprint in bytes; stop any running instance first. Pushing a `v*` tag publishes arm64 and x86_64 binaries to Releases.
+Needs the Xcode Command Line Tools and [mise](https://mise.jdx.dev). Use `mise run build`, `mise run run` (build and run in the foreground), `mise run test` and `mise run test-san` (the same tests under the address and undefined behaviour sanitizers). `scripts/footprint.sh [config-file] [seconds]` prints the idle footprint in bytes; stop any running instance first. Pushing a `v*` tag publishes arm64 and x86_64 binaries to Releases. [docs/architecture.md](docs/architecture.md) maps the code: modules, data flow, threading and the memory rules.
 
 ## Limitations
 

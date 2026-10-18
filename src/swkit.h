@@ -1,5 +1,5 @@
 #pragma once
-#include "jd.h"
+#include "common.h"
 #include <CoreText/CoreText.h>
 
 // Drawing and window helpers shared by the list (switcher.c) and card (switcher_card.c) switchers.
@@ -26,8 +26,6 @@ void sw_put(CGContextRef c, CTLineRef l, CGFloat x, CGFloat cy);
 void sw_fill_rrect(CGContextRef c, CGRect r, CGFloat radius, uint32_t rgb, CGFloat a);
 // A 1pt border drawn inside r, lit along the top and fading to a flat rim.
 void sw_edge_rrect(CGContextRef c, CGRect r, CGFloat radius, const palette_t *pal);
-// The rounded rect's shape in horizontal half-point strips, so the blur does not show outside the corners.
-CFTypeRef sw_rounded_region(CGSize sz, CGFloat radius);
 // A translucent, mouse-transparent window at at of size sz, drawn at res (2 is sharp on Retina, 1 costs a quarter of the memory). With radius > 0 the background
 // is blurred and the window takes the rounded shape.
 uint32_t sw_window(int cid, CGPoint at, CGSize sz, CGFloat radius, int blur, double res, CGContextRef *out);

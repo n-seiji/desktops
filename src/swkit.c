@@ -1,5 +1,6 @@
 #include "swkit.h"
-#include "extern.h"
+#include "appearance.h"
+#include "skylight.h"
 #include <math.h>
 #include <stdlib.h>
 
@@ -114,7 +115,7 @@ uint32_t sw_mix(uint32_t fg, uint32_t bg, CGFloat t) {
 
 // The panel's shape: horizontal half-point strips approximating the rounded rect, so the
 // background blur does not show outside the corners.
-CFTypeRef sw_rounded_region(CGSize sz, CGFloat radius) {
+static CFTypeRef rounded_region(CGSize sz, CGFloat radius) {
     HIMutableShapeRef shape = HIShapeCreateMutable();
     int steps = (int)(radius * 2);
     for (int k = 0; k < steps; k++) {
@@ -144,7 +145,7 @@ uint32_t sw_window(int cid, CGPoint at, CGSize sz, CGFloat radius, int blur, dou
     SLSSetWindowOpacity(cid, w, false);
     SLSSetWindowLevel(cid, w, CGWindowLevelForKey(kCGPopUpMenuWindowLevelKey));
     if (radius > 0) {
-        CFTypeRef shape = sw_rounded_region(sz, radius);
+        CFTypeRef shape = rounded_region(sz, radius);
         SLSSetWindowShape(cid, w, 0, 0, shape);
         CFRelease(shape);
     }

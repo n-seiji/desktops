@@ -1,4 +1,4 @@
-#include "jd.h"
+#include "title.h"
 #include <stdlib.h>
 
 // Window titles often end in " - <app name>" (browsers add a profile after it too).

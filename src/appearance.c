@@ -1,4 +1,5 @@
-#include "jd.h"
+#include "appearance.h"
+#include <CoreFoundation/CoreFoundation.h>
 
 // The key is only set while the system is in Dark mode, and it follows Auto too.
 bool appearance_dark(void) {

@@ -1,4 +1,12 @@
 #import <AppKit/AppKit.h>
+#include "app.h"
+#include "apps.h"
+#include "border.h"
+#include "config.h"
+#include "hotkey.h"
+#include "menubar.h"
+#include "thumb.h"
+#include "wm.h"
 #include <fcntl.h>
 #include <signal.h>
 #include <stdio.h>
@@ -9,7 +17,6 @@
 #include <spawn.h>
 #include <sys/file.h>
 #include <unistd.h>
-#include "jd.h"
 
 extern char **environ;
 static dispatch_source_t signal_sources[3];

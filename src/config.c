@@ -1,4 +1,5 @@
-#include "jd.h"
+#include "config.h"
+#include "config_write.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
