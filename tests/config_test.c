@@ -79,6 +79,10 @@ int main(void) {
     FILE *f = fopen(path, "w");
     if (!f) return 1;
     fputs("no_preview = com.example.vault  com.example.notes\nno_preview=Com.Example.Other\nmodifier = CMD\ncom.example.pinned = 2\n", f);
+    fputs("no_preview =", f); // a line far over 512 bytes: every id on it counts, the last one too
+    for (int i = 0; i < 400; i++) fprintf(f, " com.example.long%d", i);
+    fprintf(f, " com.example.%0150d com.example.after\n", 7); // one id too long for the buffer, then one more
+    fputs("modifier = ctrl\n", f); // read after the long line: it must not have been split
     fclose(f);
     setenv("HOME", dir, 1);
     config_load();
@@ -88,10 +92,14 @@ int main(void) {
     snprintf(path, sizeof path, "%s/.config", dir);
     rmdir(path);
     rmdir(dir);
-    if (config_modifier() != kCGEventFlagMaskCommand) {
-        printf("FAIL config_modifier() after \"modifier = CMD\" = %llx; want command\n", (unsigned long long)config_modifier());
+    if (config_modifier() != kCGEventFlagMaskControl) {
+        printf("FAIL config_modifier() after a long no_preview line and \"modifier = ctrl\" = %llx; want control\n", (unsigned long long)config_modifier());
         failed++;
     }
+    check_no_preview("com.example.long0", true);
+    check_no_preview("com.example.long399", true);
+    check_no_preview("com.example.after", true);
+    check_no_preview("com.example.long400", false);
     check_no_preview("com.example.vault", true);
     check_no_preview("com.example.notes", true);
     check_no_preview("com.example.other", true);

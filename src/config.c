@@ -92,8 +92,10 @@ void config_load(void) {
     FILE *f = fopen(path, "r");
     if (!f) return;
 
-    char line[512];
-    while (fgets(line, sizeof line, f)) {
+    // Lines have no length limit: a long no_preview list must not lose its tail, because every id lost is an app that gets screenshotted.
+    char *line = NULL;
+    size_t cap = 0;
+    while (getline(&line, &cap, f) >= 0) {
         char *s = trim(line);
         if (!*s || *s == '#') continue;
         char *eq = strchr(s, '=');
@@ -128,6 +130,10 @@ void config_load(void) {
         }
         if (!strcmp(k, "no_preview")) {
             for (char *tok = strtok(v, " \t"); tok; tok = strtok(NULL, " \t")) {
+                if (strlen(tok) >= sizeof extra->id) {
+                    fprintf(stderr, "just-desktops: no_preview id longer than %zu bytes ignored: %.20s...\n", sizeof extra->id - 1, tok);
+                    continue;
+                }
                 nopreview_t *n = realloc(extra, sizeof *extra * (nextra + 1));
                 if (!n) break;
                 extra = n;
@@ -137,12 +143,17 @@ void config_load(void) {
         }
         int ws = atoi(v);
         if (ws < 1 || ws > JD_MAX_WS) continue;
+        if (strlen(k) >= sizeof assigns->id) {
+            fprintf(stderr, "just-desktops: bundle id longer than %zu bytes ignored: %.20s...\n", sizeof assigns->id - 1, k);
+            continue;
+        }
         assign_t *n = realloc(assigns, sizeof *assigns * (nassigns + 1));
         if (!n) break;
         assigns = n;
         snprintf(assigns[nassigns].id, sizeof assigns[nassigns].id, "%s", k);
         assigns[nassigns++].ws = ws;
     }
+    free(line);
     fclose(f);
 }
 
