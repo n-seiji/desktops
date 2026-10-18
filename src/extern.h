@@ -28,3 +28,7 @@ extern CGError SLSRequestNotificationsForWindows(int cid, uint32_t *window_list,
 extern CGError SLSGetEventPort(int cid, mach_port_t *port);
 extern CGEventRef SLEventCreateNextEvent(int cid);
 extern void _CFMachPortSetOptions(CFMachPortRef port, int options);
+extern CFTypeRef SLSWindowQueryWindows(int cid, CFArrayRef windows, int count);
+extern CFTypeRef SLSWindowQueryResultCopyWindows(CFTypeRef query);
+extern bool SLSWindowIteratorAdvance(CFTypeRef iterator);
+extern CFArrayRef SLSWindowIteratorGetCornerRadii(CFTypeRef iterator); // four CFNumbers, in points

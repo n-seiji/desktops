@@ -10,9 +10,8 @@
 
 #define RING_WIDTH 1.5
 #define RING_GAP 3.0
-#define WINDOW_RADIUS 16.0 // typical macOS window corner radius (VS Code, Chrome); apps vary
+#define DEFAULT_RADIUS 16.0 // used when WindowServer does not report the window's corner radius
 #define RING_OUTSET (RING_GAP + RING_WIDTH) // window frame to the ring's outer edge
-#define EDGE_THICKNESS (WINDOW_RADIUS + RING_OUTSET) // top/bottom: tall enough to hold the corner arcs
 #define SIDE_THICKNESS ceil(RING_WIDTH) // left/right only hold the straight part of the ring
 
 #define RIM_FADE 0.18 // fraction of the ring's height the easing takes
@@ -39,12 +38,37 @@ static bool shown;
 static uint32_t last_target;
 static CGRect last_outer;
 static const palette_t *pal = &DARK;
+static CGFloat radius = DEFAULT_RADIUS; // the followed window's corner radius
+
+// Top and bottom are tall enough to hold the corner arcs.
+static CGFloat edge_thickness(void) { return radius + RING_OUTSET; }
+
+// The corner radius WindowServer applies to the window; it is 16 for most, 20 to 26 for newer styles.
+static CGFloat window_radius(uint32_t wid) {
+    CGFloat r = DEFAULT_RADIUS;
+    int n = (int)wid;
+    CFNumberRef num = CFNumberCreate(NULL, kCFNumberIntType, &n);
+    CFArrayRef ids = CFArrayCreate(NULL, (const void **)&num, 1, &kCFTypeArrayCallBacks);
+    CFTypeRef query = SLSWindowQueryWindows(cid, ids, 1);
+    CFTypeRef it = query ? SLSWindowQueryResultCopyWindows(query) : NULL;
+    if (it && SLSWindowIteratorAdvance(it)) {
+        CFArrayRef radii = SLSWindowIteratorGetCornerRadii(it);
+        CGFloat v;
+        if (radii && CFArrayGetCount(radii) > 0 && CFNumberGetValue(CFArrayGetValueAtIndex(radii, 0), kCFNumberCGFloatType, &v))
+            r = fmin(fmax(v, 0), 64);
+    }
+    if (it) CFRelease(it);
+    if (query) CFRelease(query);
+    CFRelease(ids);
+    CFRelease(num);
+    return r;
+}
 
 // Window rects are snapped out to whole points (the ring itself sits at
 // fractional offsets inside them); a window at a half-point origin leaves an
 // unpainted row along one edge.
 static CGRect edge_rect(int e, CGRect o) {
-    CGFloat t = EDGE_THICKNESS, s = SIDE_THICKNESS;
+    CGFloat t = edge_thickness(), s = SIDE_THICKNESS;
     CGRect r;
     switch (e) {
     case TOP: r = CGRectMake(o.origin.x, o.origin.y, o.size.width, t); break;
@@ -112,12 +136,12 @@ static void draw_edge(int e, CGRect outer) {
     CGContextTranslateCTM(ctx, 0, er.size.height); // SkyLight contexts are y-up, frames are y-down
     CGContextScaleCTM(ctx, 1, -1);
     CGRect path_rect = CGRectInset((CGRect){{0, 0}, outer.size}, RING_WIDTH / 2, RING_WIDTH / 2);
-    CGFloat radius = WINDOW_RADIUS + RING_GAP + RING_WIDTH / 2;
+    CGFloat ring_r = radius + RING_GAP + RING_WIDTH / 2;
     CGFloat max_r = fmin(path_rect.size.width, path_rect.size.height) / 2;
-    if (radius > max_r) radius = max_r;
+    if (ring_r > max_r) ring_r = max_r;
     CGFloat ox = outer.origin.x - er.origin.x, oy = outer.origin.y - er.origin.y;
     CGAffineTransform to_local = CGAffineTransformMakeTranslation(ox, oy);
-    CGPathRef path = CGPathCreateWithRoundedRect(path_rect, radius, radius, &to_local);
+    CGPathRef path = CGPathCreateWithRoundedRect(path_rect, ring_r, ring_r, &to_local);
     CGContextAddPath(ctx, path);
     CGContextSetLineWidth(ctx, RING_WIDTH);
     CGContextReplacePathWithStrokedPath(ctx);
@@ -162,16 +186,18 @@ void border_show(CGRect frame, uint32_t target_wid) {
     CGDirectDisplayID d;
     uint32_t n = 0;
     if (CGGetDisplaysWithRect(frame, 1, &d, &n) == kCGErrorSuccess && n) outer = CGRectIntersection(outer, CGDisplayBounds(d));
-    if (outer.size.width < 2 * EDGE_THICKNESS || outer.size.height < 2 * EDGE_THICKNESS) {
+    bool same = shown && target_wid == last_target;
+    bool resized = !same || !CGSizeEqualToSize(outer.size, last_outer.size);
+    if (resized) radius = window_radius(target_wid);
+    if (outer.size.width < 2 * edge_thickness() || outer.size.height < 2 * edge_thickness()) {
         border_hide();
         return;
     }
 
-    bool same = shown && target_wid == last_target;
     if (same && CGRectEqualToRect(outer, last_outer)) return;
 
     SLSDisableUpdate(cid);
-    if (same && CGSizeEqualToSize(outer.size, last_outer.size)) { // dragged: only the position changed
+    if (!resized) { // dragged: only the position changed
         for (int e = 0; e < NEDGES; e++) {
             CGPoint o = edge_rect(e, outer).origin;
             SLSMoveWindow(cid, edges[e].wid, &o);

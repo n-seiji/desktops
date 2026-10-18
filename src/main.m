@@ -33,10 +33,11 @@ int main(int argc, char **argv) {
         }
         config_load();
         if (config_switcher_style() >= SW_SQUARE) thumb_request_access();
-        if (config_border()) border_init();
         wm_init();
         apps_init();
         if (config_menubar()) menubar_init();
+        // After AppKit is up: edge windows made before it stay ordered out, except the first.
+        if (config_border()) border_init();
         if (!hotkey_init()) {
             fprintf(stderr, "just-desktops: could not create keyboard event tap\n");
             wm_restore_all();
