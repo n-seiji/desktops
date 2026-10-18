@@ -50,7 +50,7 @@ void card_step(int dir);
 void card_commit(void);
 void card_cancel(void);
 
-// thumb.m: window thumbnails for the card switchers (ScreenCaptureKit, loaded only when one is used)
+// thumb.m: window thumbnails for the card switchers (ScreenCaptureKit, used only when one is chosen)
 void thumb_request_access(void); // asks for Screen Recording access once, when it is not granted
 bool thumb_ready(void);          // access is granted and this macOS can take window screenshots
 void thumb_begin(void);          // a switcher opened: look up the shareable windows (async)
