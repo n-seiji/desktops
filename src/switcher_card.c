@@ -69,7 +69,8 @@ typedef struct {
     bool used;
     long v;
     double from, to; // position in slots, p
-    CGImageRef img;  // the window's screenshot once it has arrived
+    CGImageRef img;  // the window's screenshot, only while it is being drawn
+    bool shot;       // the screenshot is already in the card
 } card_t;
 
 static int cid;
@@ -257,9 +258,12 @@ static void request_thumb(int ci) {
     unsigned gen = open_gen;
     thumb_capture(ents[idx_of(v)].wid, ^(CGImageRef img) {
         card_t *k = &cards[ci];
-        if (gen != open_gen || !img || !k->used || k->v != v || k->img) return;
+        if (gen != open_gen || !img || !k->used || k->v != v || k->shot) return;
         k->img = CGImageRetain(img);
         draw_card(k);
+        CGImageRelease(k->img);
+        k->img = NULL;
+        k->shot = true;
     });
 }
 
@@ -368,8 +372,7 @@ static card_t *new_card(long v) {
             set_alpha(k, 0);
             SLSOrderWindow(cid, k->wid, 1, 0);
         }
-        if (k->img) CGImageRelease(k->img);
-        k->img = NULL;
+        k->shot = false;
         k->used = true;
         k->v = v;
         draw_card(k);
