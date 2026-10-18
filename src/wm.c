@@ -498,14 +498,14 @@ int wm_window_ids(int dir, uint32_t **out, int *sel) {
 
 // The switchable windows of this desktop for the menu bar, grouped by app in order of each
 // app's first window, an app's windows in tracking order, so focus changes never reorder.
-// Returns the count; pids and wids hold up to 64.
+// Returns the count; pids and wids hold up to JD_MENUBAR_WINS.
 static int menubar_order(pid_t *pids, uint32_t *wids) {
     double now = CFAbsoluteTimeGetCurrent();
-    pid_t vpid[64];
-    uint32_t vwid[64];
+    pid_t vpid[JD_MENUBAR_WINS];
+    uint32_t vwid[JD_MENUBAR_WINS];
     int n = 0, nv = 0;
     CFArrayRef shown = shown_windows();
-    for (int i = 0; i < nwins && nv < 64; i++) {
+    for (int i = 0; i < nwins && nv < JD_MENUBAR_WINS; i++) {
         win_t *w = &wins[i];
         if (w->ws != cur || w->hidden || get_bool(w->el, kAXMinimizedAttribute)) continue;
         bool listed = is_shown(shown, w->wid);
@@ -529,20 +529,17 @@ static int menubar_order(pid_t *pids, uint32_t *wids) {
     return n;
 }
 
-// At most MENUBAR_SLOTS get a glyph; with more, the last slot is the count of the rest.
-#define MENUBAR_SLOTS 10
-
 static void refresh_menubar(void) {
     if (!config_menubar()) return;
     win_t *f = focused(); // may track a window: before anything points into wins
     double now = CFAbsoluteTimeGetCurrent();
     uint32_t front = now < fresh_until && fresh_wid ? fresh_wid : f ? f->wid : 0;
-    pid_t pids[64];
-    uint32_t wids[64];
+    pid_t pids[JD_MENUBAR_WINS];
+    uint32_t wids[JD_MENUBAR_WINS];
     int n = menubar_order(pids, wids), shown_n = n, over = 0;
     uint32_t hash = 2166136261u; // FNV-1a of the hidden ids: tells the overflow list when it went stale
-    if (n > MENUBAR_SLOTS) {
-        shown_n = MENUBAR_SLOTS - 1;
+    if (n > JD_MENUBAR_SLOTS) {
+        shown_n = JD_MENUBAR_SLOTS - 1;
         over = n - shown_n;
         for (int i = shown_n; i < n; i++) hash = (hash ^ wids[i]) * 16777619u;
     }
@@ -554,9 +551,9 @@ static void refresh_menubar(void) {
 // across all of the desktop's windows, so an app with one hidden window and others shown
 // still gets its title.
 int wm_overflow(sw_entry_t **out) {
-    pid_t pids[64];
-    uint32_t wids[64];
-    int n = menubar_order(pids, wids), skip = MENUBAR_SLOTS - 1;
+    pid_t pids[JD_MENUBAR_WINS];
+    uint32_t wids[JD_MENUBAR_WINS];
+    int n = menubar_order(pids, wids), skip = JD_MENUBAR_SLOTS - 1;
     *out = NULL;
     if (n <= skip + 1) return 0;
     sw_entry_t *list = calloc(n, sizeof *list);

@@ -44,9 +44,7 @@
 #define COUNTER_H 20.0
 #define SQUARE_DX 120.0 // how far a square card slides before it has faded out
 #define SQUARE_FADE 1.6
-#ifndef MOVE_MS
 #define MOVE_MS 340.0
-#endif
 #define POOL 2 // the selected card and the one that just left
 #define CARD_RES 1 // the cards are drawn at 1x: 2x would add ~15MB at peak (the stage, the counter and the dots stay sharp)
 

@@ -8,13 +8,11 @@
 // Optional menu bar item: one line-art glyph per window on the current desktop (an app's
 // windows side by side), then the desktop's key in an outlined box at the right end. The
 // item grows and shrinks to the left, so the key stays where it is. The focused window's
-// glyph is cut out of a filled tile. Past MAX_SLOTS windows the last slot reads "+k"; a click
+// glyph is cut out of a filled tile. Past JD_MENUBAR_SLOTS windows the last slot reads "+k"; a click
 // on it opens a popover listing the windows that have no glyph.
 // The image is a template, so macOS tints it for light and dark menu bars.
 
 enum {
-    MAX_WINS = 64,
-    MAX_SLOTS = 10,  // glyph slots; more windows than that turn the last slot into "+k"
     SCALE = 2,       // pixels per point
     HEIGHT = 22,     // points, the status item's thickness
     SLOT = 20,       // key box and glyph tile size
@@ -40,8 +38,8 @@ static int last_ws;
 static int last_n = -1;
 static int last_over;
 static uint32_t last_hash;
-static pid_t last_pids[MAX_WINS];
-static uint32_t last_wids[MAX_WINS];
+static pid_t last_pids[JD_MENUBAR_SLOTS];
+static uint32_t last_wids[JD_MENUBAR_SLOTS];
 static uint32_t last_front;
 
 // Index of the window slot under x (points from the left edge of the strip), or -1 for a gap,
@@ -504,7 +502,7 @@ void menubar_init(void) {
 // focused window's id, 0 for none.
 void menubar_update(int ws, const pid_t *pids, const uint32_t *wids, int n, int over, uint32_t over_hash, uint32_t front) {
     if (!item) return;
-    if (n > MAX_WINS) n = MAX_WINS;
+    if (n > JD_MENUBAR_SLOTS) n = JD_MENUBAR_SLOTS;
     bool same_set = ws == last_ws && n == last_n && over == last_over && over_hash == last_hash &&
                     !memcmp(pids, last_pids, sizeof *pids * n) && !memcmp(wids, last_wids, sizeof *wids * n);
     if (same_set && front == last_front) return;
