@@ -1,6 +1,7 @@
 #include "swkit.h"
 #include "extern.h"
 #include <math.h>
+#include <stdlib.h>
 
 static const palette_t DARK = {0x141416, 0.85, 1, 0.35, 0.18, 0x9a9a9e, 0xffffff, 0xffffff, 0.10};
 static const palette_t LIGHT = {0xf6f6f8, 0.80, 0, 0.10, 0.16, 0x6e6e73, 0x1d1d1f, 0x000000, 0.08};
@@ -150,4 +151,13 @@ uint32_t sw_window(int cid, CGPoint at, CGSize sz, CGFloat radius, int blur, CGC
     if (blur) SLSSetWindowBackgroundBlurRadius(cid, w, blur);
     *out = SLWindowContextCreate(cid, w, NULL);
     return w;
+}
+
+void sw_free_entries(sw_entry_t *ents, int n) {
+    for (int i = 0; i < n; i++) {
+        if (ents[i].icon) CGImageRelease(ents[i].icon);
+        if (ents[i].app) CFRelease(ents[i].app);
+        if (ents[i].title) CFRelease(ents[i].title);
+    }
+    free(ents);
 }

@@ -47,15 +47,11 @@ static CGSize size;
 static CGPoint origin;
 static double pos, from_pos, t0;
 
-static CFStringRef main_text(const sw_entry_t *e) {
-    return e->title ? e->title : e->app;
-}
-
 // The panel's width: the widest title plus the row's padding, within MIN_W..MAX_W.
 static CGFloat fit_width(void) {
     CGFloat w = 0;
     for (int i = 0; i < n; i++) {
-        CFStringRef s = main_text(&ents[i]);
+        CFStringRef s = sw_text(&ents[i]);
         if (!s) continue;
         CTLineRef l = sw_fit(fonts[F_ROW], s, 0, 1e9, kCTLineTruncationEnd);
         w = fmax(w, CTLineGetTypographicBounds(l, NULL, NULL, NULL));
@@ -82,7 +78,7 @@ static void draw_row(CGContextRef c, sw_entry_t *e, CGFloat y) {
         CGContextDrawImage(c, (CGRect){{0, 0}, {ICON, ICON}}, e->icon);
         CGContextRestoreGState(c);
     }
-    CFStringRef main = main_text(e);
+    CFStringRef main = sw_text(e);
     if (!main) return;
     sw_put(c, sw_fit(fonts[F_ROW], main, pal->title, right - left, sw_is_path(main) ? kCTLineTruncationStart : kCTLineTruncationEnd), left, cy);
 }
@@ -155,12 +151,7 @@ static void close_panel(void) {
         if (fonts[i]) CFRelease(fonts[i]);
         fonts[i] = NULL;
     }
-    for (int i = 0; i < n; i++) {
-        if (ents[i].icon) CGImageRelease(ents[i].icon);
-        if (ents[i].app) CFRelease(ents[i].app);
-        if (ents[i].title) CFRelease(ents[i].title);
-    }
-    free(ents);
+    sw_free_entries(ents, n);
     ents = NULL;
     ctx = hctx = NULL;
     wid = hwid = 0;

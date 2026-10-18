@@ -44,6 +44,15 @@ void card_step(int dir, bool peek);
 void card_commit(void);
 void card_cancel(void);
 
+// thumb.m: window thumbnails for the card switchers (ScreenCaptureKit, loaded only when one is used)
+void thumb_request_access(void); // asks for Screen Recording access once, when it is not granted
+bool thumb_ready(void);          // access is granted and this macOS can take window screenshots
+void thumb_begin(void);          // a switcher opened: look up the shareable windows (async)
+// Screenshots window wid, at most 600x376 px. done runs on the main queue with the image (valid
+// during the call; retain it) or NULL, unless thumb_end ran first.
+void thumb_capture(uint32_t wid, void (^done)(CGImageRef img));
+void thumb_end(void);            // the switcher closed: drop everything held
+
 // menubar.m
 void menubar_init(void);
 // The current desktop ws, the n pids of the apps on it in switcher order, and the focused pid.

@@ -31,3 +31,10 @@ CFTypeRef sw_rounded_region(CGSize sz, CGFloat radius);
 // A translucent, mouse-transparent window at at of size sz, drawn at 2x. With radius > 0 the background
 // is blurred and the window takes the rounded shape.
 uint32_t sw_window(int cid, CGPoint at, CGSize sz, CGFloat radius, int blur, CGContextRef *out);
+
+// The row text of an entry: its cleaned title, or the app name when there is none.
+static inline CFStringRef sw_text(const sw_entry_t *e) {
+    return e->title ? e->title : e->app;
+}
+// Frees the entries wm_windows returned.
+void sw_free_entries(sw_entry_t *ents, int n);

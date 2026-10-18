@@ -32,6 +32,7 @@ int main(int argc, char **argv) {
             while (!AXIsProcessTrusted()) sleep(2);
         }
         config_load();
+        if (config_switcher_style() >= SW_SQUARE) thumb_request_access();
         if (config_border()) border_init();
         wm_init();
         apps_init();
