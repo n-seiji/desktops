@@ -135,7 +135,12 @@ static void add_app(pid_t pid, int assign, bool nopreview, int attempt) {
     if (napps == capapps) {
         int cap = capapps ? capapps * 2 : 32;
         app_t *n = realloc(apps, sizeof *apps * cap);
-        if (!n) return;
+        if (!n) {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), kCFRunLoopDefaultMode);
+            CFRelease(obs);
+            CFRelease(el);
+            return;
+        }
         apps = n;
         capapps = cap;
     }
