@@ -50,7 +50,7 @@ int main(void) {
     check_on("ON", false);
     check_switcher("list", SW_LIST);
     check_switcher("square", SW_SQUARE);
-    check_switcher("peek", SW_PEEK);
+    check_switcher("peek", SW_LIST);
     check_switcher("off", SW_OFF);
     check_switcher("on", SW_LIST);
     check_switcher("garbage", SW_LIST);

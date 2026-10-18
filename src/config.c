@@ -6,7 +6,7 @@
 
 // ~/.config/just-desktops/config
 //   border = on|off
-//   switcher = list|square|peek|off   (⌥Tab window switcher; on = list)
+//   switcher = list|square|off   (⌥Tab window switcher; on = list)
 //   menubar = on|off      (menu bar item: current desktop and its apps)
 //   keys = 1 2 3 q w e    (digits and letters; the n-th key is Desktop n)
 //   <bundle id> = <desktop number>
@@ -58,7 +58,6 @@ int config_parse_keys(const char *list, int *codes) {
 sw_style_t config_parse_switcher(const char *v) {
     if (!strcmp(v, "off") || !strcmp(v, "false") || !strcmp(v, "no")) return SW_OFF;
     if (!strcmp(v, "square")) return SW_SQUARE;
-    if (!strcmp(v, "peek")) return SW_PEEK;
     return SW_LIST;
 }
 

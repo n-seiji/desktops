@@ -211,7 +211,7 @@ static void open_panel(int dir) {
 
 static void panel_step(int dir) {
     if (config_switcher_style() >= SW_SQUARE) {
-        card_step(dir, config_switcher_style() == SW_PEEK);
+        card_step(dir);
         return;
     }
     if (!wid) {
