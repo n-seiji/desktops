@@ -9,6 +9,7 @@
 // config.c
 void config_load(void);
 int config_assign(const char *bundle_id);
+bool config_no_preview(const char *bundle_id); // the square switcher never screenshots this app's windows
 bool config_border(void);
 typedef enum { SW_OFF, SW_LIST, SW_SQUARE } sw_style_t;
 sw_style_t config_switcher_style(void); // off: ⌥Tab cycles instantly with no panel
@@ -34,6 +35,7 @@ typedef struct {
     pid_t pid;
     CGImageRef icon;
     CFStringRef app, title;
+    bool nopreview; // never capture this window (password managers)
 } sw_entry_t;
 void switcher_step(int dir);
 void switcher_commit(void);

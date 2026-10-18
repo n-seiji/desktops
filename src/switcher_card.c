@@ -232,6 +232,7 @@ static void draw_card(card_t *k) {
 static void request_thumb(int ci) {
     if (!thumbs) return;
     long v = cards[ci].v;
+    if (ents[idx_of(v)].nopreview) return;
     unsigned gen = open_gen;
     thumb_capture(ents[idx_of(v)].wid, ^(CGImageRef img) {
         card_t *k = &cards[ci];

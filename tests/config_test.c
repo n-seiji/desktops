@@ -1,5 +1,8 @@
 #include "../src/jd.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 static int failed;
 
@@ -37,7 +40,53 @@ static void check_key_char(int i, char want) {
     }
 }
 
+static void check_no_preview(const char *id, bool want) {
+    if (config_no_preview(id) != want) {
+        printf("FAIL config_no_preview(\"%s\") = %d; want %d\n", id, !want, want);
+        failed++;
+    }
+}
+
 int main(void) {
+    check_no_preview("com.1password.1password", true);
+    check_no_preview("COM.Apple.Passwords", true);
+    check_no_preview("com.apple.keychainaccess", true);
+    check_no_preview("org.keepassxc.keepassxc", true);
+    check_no_preview("com.apple.Safari", false);
+    check_no_preview("", false);
+    check_no_preview(NULL, false);
+
+    char dir[] = "/tmp/jd_config_test.XXXXXX";
+    if (!mkdtemp(dir)) return 1;
+    char path[256];
+    snprintf(path, sizeof path, "%s/.config", dir);
+    mkdir(path, 0700);
+    snprintf(path, sizeof path, "%s/.config/just-desktops", dir);
+    mkdir(path, 0700);
+    snprintf(path, sizeof path, "%s/.config/just-desktops/config", dir);
+    FILE *f = fopen(path, "w");
+    if (!f) return 1;
+    fputs("no_preview = com.example.vault  com.example.notes\nno_preview=Com.Example.Other\ncom.example.pinned = 2\n", f);
+    fclose(f);
+    setenv("HOME", dir, 1);
+    config_load();
+    unlink(path);
+    snprintf(path, sizeof path, "%s/.config/just-desktops", dir);
+    rmdir(path);
+    snprintf(path, sizeof path, "%s/.config", dir);
+    rmdir(path);
+    rmdir(dir);
+    check_no_preview("com.example.vault", true);
+    check_no_preview("com.example.notes", true);
+    check_no_preview("com.example.other", true);
+    check_no_preview("com.example.pinned", false);
+    check_no_preview("com.example", false);
+    check_no_preview("com.1password.1password", true);
+    if (config_assign("com.example.pinned") != 2) {
+        printf("FAIL no_preview line disturbed pins\n");
+        failed++;
+    }
+
     check_key_char(0, '1');
     check_key_char(2, '3');
     check_key_char(3, 'Q');

@@ -25,6 +25,7 @@ typedef struct {
     AXUIElementRef el;
     AXObserverRef obs;
     int assign;
+    bool nopreview;
 } app_t;
 
 static win_t *wins;
@@ -227,7 +228,7 @@ static void refresh_border(void) {
 
 // ---- apps ----
 
-static void add_app(pid_t pid, int assign, int attempt) {
+static void add_app(pid_t pid, int assign, bool nopreview, int attempt) {
     if (find_app(pid)) return;
     AXObserverRef obs = NULL;
     if (AXObserverCreate(pid, ax_cb, &obs) != kAXErrorSuccess) return;
@@ -242,7 +243,7 @@ static void add_app(pid_t pid, int assign, int attempt) {
         // Freshly launched apps are often not ready for AX yet.
         if (err == kAXErrorCannotComplete && attempt < 20)
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 250 * NSEC_PER_MSEC), dispatch_get_main_queue(),
-                           ^{ add_app(pid, assign, attempt + 1); });
+                           ^{ add_app(pid, assign, nopreview, attempt + 1); });
         return;
     }
     AXObserverAddNotification(obs, el, kAXFocusedWindowChangedNotification, ctx);
@@ -256,7 +257,7 @@ static void add_app(pid_t pid, int assign, int attempt) {
         apps = n;
         capapps = cap;
     }
-    apps[napps++] = (app_t){pid, el, obs, assign};
+    apps[napps++] = (app_t){pid, el, obs, assign, nopreview};
 
     CFArrayRef list = NULL;
     if (AXUIElementCopyAttributeValue(el, kAXWindowsAttribute, (CFTypeRef *)&list) == kAXErrorSuccess && list) {
@@ -268,7 +269,7 @@ static void add_app(pid_t pid, int assign, int attempt) {
 }
 
 void wm_add_app(pid_t pid, const char *bundle_id) {
-    add_app(pid, config_assign(bundle_id), 0);
+    add_app(pid, config_assign(bundle_id), config_no_preview(bundle_id), 0);
     refresh_menubar();
 }
 
@@ -464,7 +465,9 @@ int wm_windows(int dir, sw_entry_t **out, int *sel) {
         if (!switchable(w, shown)) continue;
         if (w == f) at = n;
         CFStringRef app = apps_name(w->pid), raw = title_of(w->el);
-        list[n++] = (sw_entry_t){w->wid, w->pid, apps_icon(w->pid, 56), app, raw ? title_clean(raw, app) : NULL};
+        app_t *own = find_app(w->pid);
+        list[n++] = (sw_entry_t){w->wid, w->pid, apps_icon(w->pid, 56), app, raw ? title_clean(raw, app) : NULL,
+                                 own && own->nopreview};
         if (raw) CFRelease(raw);
     }
     if (shown) CFRelease(shown);

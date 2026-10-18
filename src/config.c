@@ -3,23 +3,38 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 // ~/.config/just-desktops/config
 //   border = on|off
 //   switcher = list|square|off   (⌥Tab window switcher; on = list; off = switch at once, no panel)
 //   menubar = on|off      (menu bar item: current desktop and its apps)
 //   keys = 1 2 3 q w e    (digits and letters; the n-th key is Desktop n)
+//   no_preview = <bundle id> [<bundle id> ...]   (apps the square switcher never screenshots; repeatable)
 //   <bundle id> = <desktop number>
 
 typedef struct { char id[128]; int ws; } assign_t;
 
 static assign_t *assigns;
 static int nassigns;
+typedef struct { char id[128]; } nopreview_t;
+static nopreview_t *extra; // no_preview entries from the config file, on top of the built-in list
+static int nextra;
 static bool border = true;
 static sw_style_t switcher = SW_LIST;
 static bool menubar = false;
 static int keys[JD_MAX_WS] = {0x12, 0x13, 0x14, 0x0C, 0x0D, 0x0E}; // 1 2 3 q w e
 static int nkeys = 6;
+
+// Password managers: their windows are never captured for the square switcher (ids compared case-insensitively).
+static const char *const secret_apps[] = {
+    "com.1password.1password", "com.agilebits.onepassword7", "com.agilebits.onepassword-osx", "com.agilebits.onepassword4",
+    "com.bitwarden.desktop", "com.dashlane.dashlanephonefinal", "com.lastpass.lastpassmacdesktop",
+    "org.keepassxc.keepassxc", "com.keepassium.ios", "com.markmcguill.strongbox.mac",
+    "com.markmcguill.strongbox.mac.mas", "in.sinew.Enpass-Desktop", "io.enpass.Enpass", "com.nordsec.nordpass",
+    "me.proton.pass.electron", "com.callpod.keepermac.lite", "com.apple.Passwords", "com.apple.keychainaccess",
+    "com.hicknhacksoftware.MacPass", "com.buttercup.desktop",
+};
 
 // ANSI virtual keycode -> character; a space marks a keycode that is not bindable.
 static const char layout[] = "asdfhgzxcv bqwerty123465 97 80 ou ip lj k    nm";
@@ -98,6 +113,15 @@ void config_load(void) {
             }
             continue;
         }
+        if (!strcmp(k, "no_preview")) {
+            for (char *tok = strtok(v, " \t"); tok; tok = strtok(NULL, " \t")) {
+                nopreview_t *n = realloc(extra, sizeof *extra * (nextra + 1));
+                if (!n) break;
+                extra = n;
+                snprintf(extra[nextra++].id, sizeof extra->id, "%s", tok);
+            }
+            continue;
+        }
         int ws = atoi(v);
         if (ws < 1 || ws > JD_MAX_WS) continue;
         assign_t *n = realloc(assigns, sizeof *assigns * (nassigns + 1));
@@ -114,6 +138,15 @@ int config_assign(const char *bundle_id) {
     for (int i = 0; i < nassigns; i++)
         if (!strcmp(assigns[i].id, bundle_id)) return assigns[i].ws <= nkeys ? assigns[i].ws : 0;
     return 0;
+}
+
+bool config_no_preview(const char *bundle_id) {
+    if (!bundle_id) return false;
+    for (size_t i = 0; i < sizeof secret_apps / sizeof *secret_apps; i++)
+        if (!strcasecmp(secret_apps[i], bundle_id)) return true;
+    for (int i = 0; i < nextra; i++)
+        if (!strcasecmp(extra[i].id, bundle_id)) return true;
+    return false;
 }
 
 bool config_border(void) { return border; }
