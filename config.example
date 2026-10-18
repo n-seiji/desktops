@@ -9,7 +9,8 @@ border = on
 switcher = list
 
 # Apps whose windows the square switcher never screenshots (they show the app icon instead). Password managers
-# are built in (1Password, Bitwarden, KeePassXC, Apple Passwords, Keychain Access and others); list more bundle ids here, space separated. The line can repeat.
+# are built in (1Password, Bitwarden, KeePassXC, Apple Passwords, Keychain Access and others); other apps (for example RoboForm or Secrets)
+# are not, so list their bundle ids here, space separated. The line can repeat.
 # no_preview = com.example.vault com.example.notes
 
 # Menu bar item (on|off): the current desktop's key and the apps on it. Costs about 5MB of memory when on
