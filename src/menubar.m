@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "jd.h"
+#include "select.h"
 
 // Optional menu bar item: one line-art glyph per window on the current desktop (an app's
 // windows side by side), then the desktop's key in an outlined box at the right end. The
@@ -88,9 +89,8 @@ static double overflow_closed_at; // a click on the item closes the panel on mou
 - (BOOL)acceptsFirstMouse:(NSEvent *)e { (void)e; return YES; }
 - (int)visible { return n < MAX_ROWS ? n : MAX_ROWS; }
 - (void)select:(int)i {
-    sel = (i % n + n) % n;
-    if (sel < top) top = sel;
-    if (sel >= top + [self visible]) top = sel - [self visible] + 1;
+    sel = sel_wrap(i, n);
+    top = sel_top(top, sel, [self visible]);
     [self setNeedsDisplay:YES];
 }
 - (void)choose:(int)i {
@@ -139,8 +139,7 @@ static double overflow_closed_at; // a click on the item closes the panel on mou
 }
 - (int)rowAt:(NSEvent *)e {
     NSPoint p = [self convertPoint:e.locationInWindow fromView:nil];
-    int k = (int)floor((p.y - ARROW - ROW_PAD) / ROW_H);
-    return k < 0 || k >= [self visible] ? -1 : top + k;
+    return sel_row_at(p.y - ARROW - ROW_PAD, ROW_H, top, [self visible]);
 }
 - (void)mouseMoved:(NSEvent *)e {
     int i = [self rowAt:e];
@@ -153,7 +152,7 @@ static double overflow_closed_at; // a click on the item closes the panel on mou
 - (void)scrollWheel:(NSEvent *)e {
     int most = n - [self visible];
     if (most <= 0 || e.scrollingDeltaY == 0) return;
-    top = MAX(0, MIN(most, top + (e.scrollingDeltaY < 0 ? 1 : -1)));
+    top = sel_clamp(top + (e.scrollingDeltaY < 0 ? 1 : -1), 0, most);
     [self setNeedsDisplay:YES];
 }
 - (void)updateTrackingAreas {

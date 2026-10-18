@@ -1,5 +1,6 @@
 #include "jd.h"
 #include "extern.h"
+#include "select.h"
 #include <dispatch/dispatch.h>
 #include <math.h>
 #include <stdlib.h>
@@ -497,7 +498,7 @@ int wm_windows(int dir, sw_entry_t **out, int *sel) {
     }
     if (shown) CFRelease(shown);
     label_entries(list, n);
-    *sel = n ? (at < 0 ? (dir > 0 ? 0 : n - 1) : ((at + dir) % n + n) % n) : 0;
+    *sel = sel_start(at, dir, n);
     *out = list;
     return n;
 }
@@ -516,7 +517,7 @@ int wm_window_ids(int dir, uint32_t **out, int *sel) {
         ids[n++] = wins[i].wid;
     }
     if (shown) CFRelease(shown);
-    *sel = n ? (at < 0 ? (dir > 0 ? 0 : n - 1) : ((at + dir) % n + n) % n) : 0;
+    *sel = sel_start(at, dir, n);
     *out = ids;
     return n;
 }

@@ -1,5 +1,6 @@
 #include "swkit.h"
 #include "extern.h"
+#include "select.h"
 #include <dispatch/dispatch.h>
 #include <malloc/malloc.h>
 #include <math.h>
@@ -84,7 +85,7 @@ static dispatch_source_t timer;
 static double t0;
 
 static int idx_of(long v) {
-    return (int)(((v % n) + n) % n);
+    return sel_wrap(v, n);
 }
 
 // cubic-bezier(0.22, 0.9, 0.25, 1): most of the travel happens in the first 80ms.
@@ -159,9 +160,7 @@ static void draw_dots(void) {
     CGSize sz = {dots_w(), DOT + 4};
     begin(dots_ctx, sz);
     int nd = n < MAX_DOTS ? n : MAX_DOTS, at = idx_of(sel_v);
-    int first = n <= MAX_DOTS ? 0 : at - MAX_DOTS / 2;
-    if (first < 0) first = 0;
-    if (first > n - nd) first = n - nd;
+    int first = sel_window(at, n, nd);
     CGFloat x = (sz.width - ((nd - 1) * (DOT + DOT_GAP) + PILL)) / 2, y = (sz.height - DOT) / 2;
     for (int i = first; i < first + nd; i++) {
         bool on = i == at;
