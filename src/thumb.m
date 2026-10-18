@@ -13,7 +13,9 @@ static id content;                // SCShareableContent, once it has arrived
 static NSMutableArray *pending;   // @[@(wid), done block] pairs waiting for content
 
 void thumb_request_access(void) {
-    if (!CGPreflightScreenCaptureAccess()) CGRequestScreenCaptureAccess();
+    if (@available(macOS 14.0, *)) { // earlier systems cannot take the screenshots, so the prompt would be pointless
+        if (!CGPreflightScreenCaptureAccess()) CGRequestScreenCaptureAccess();
+    }
 }
 
 bool thumb_ready(void) {
