@@ -16,6 +16,8 @@ typedef struct {
     int ws;
     CGPoint saved;
     bool hidden;
+    double shown_at; // when show() last unparked it
+    bool was_listed; // WindowServer listed it the last time we looked
 } win_t;
 
 typedef struct {
@@ -33,12 +35,15 @@ static int cur = 1;
 static uint32_t last_focus[JD_MAX_WS + 1];
 static bool border_on = true;
 static uint32_t stale; // parked window macOS still reports as focused
+static double fresh_until; // until then, the menu bar prefers the app we just focused...
+static pid_t fresh_front;  // ...to NSWorkspace's frontmost app, which lags behind
 static double settle_until; // until then, parked windows macOS activates on its own are not pulled
 static AXUIElementRef sys;
 
 // After a desktop change macOS hands activation from one parked window's app to the next,
 // about a second apart; each one extends the quiet period a user's Cmd-Tab has to wait out.
 #define SETTLE_S 1.5
+#define FRESH_S 0.3 // WindowServer takes about this long to list windows we just unparked
 
 static void ax_cb(AXObserverRef obs, AXUIElementRef el, CFStringRef n, void *ctx);
 static void refresh_menubar(void);
@@ -126,6 +131,7 @@ static void show(win_t *w) {
     if (!w->hidden) return;
     set_pos(w->el, w->saved);
     w->hidden = false;
+    w->shown_at = CFAbsoluteTimeGetCurrent();
 }
 
 static void focus(win_t *w) {
@@ -135,10 +141,11 @@ static void focus(win_t *w) {
     AXUIElementPerformAction(w->el, kAXRaiseAction);
 }
 
-static void focus_in_current(void) {
+static win_t *focus_in_current(void) {
     win_t *t = find_wid(last_focus[cur]);
     if (!t || t->ws != cur) t = first_in(cur);
     if (t) focus(t);
+    return t;
 }
 
 // ---- tracking ----
@@ -161,7 +168,7 @@ static win_t *track(app_t *a, AXUIElementRef el) {
         capwins = cap;
     }
     w = &wins[nwins++];
-    *w = (win_t){(AXUIElementRef)CFRetain(el), a->pid, wid, a->assign ? a->assign : cur, {0, 0}, false};
+    *w = (win_t){(AXUIElementRef)CFRetain(el), a->pid, wid, a->assign ? a->assign : cur, {0, 0}, false, 0, false};
 
     // A window left in the corner by a previous crash: bring it back.
     CGPoint p;
@@ -338,13 +345,16 @@ void wm_switch(int ws) {
     for (int i = 0; i < nwins; i++)
         if (wins[i].ws == old) hide(&wins[i]);
 
-    focus_in_current();
-    settle_until = CFAbsoluteTimeGetCurrent() + SETTLE_S;
+    win_t *t = focus_in_current();
+    double now = CFAbsoluteTimeGetCurrent();
+    settle_until = now + SETTLE_S;
+    fresh_until = now + FRESH_S;
+    fresh_front = t ? t->pid : 0;
     refresh_border();
     refresh_menubar();
-    // WindowServer may not list the windows just shown as on screen yet.
+    // WindowServer may not list the windows just shown as on screen yet: check again once it does.
     if (config_menubar())
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 150 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{ refresh_menubar(); });
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (FRESH_S + 0.05) * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ refresh_menubar(); });
 }
 
 void wm_move_focused(int ws) {
@@ -465,16 +475,21 @@ static void refresh_menubar(void) {
     if (!config_menubar()) return;
     pid_t pids[64];
     int n = 0;
+    double now = CFAbsoluteTimeGetCurrent();
     CFArrayRef shown = shown_windows();
     for (int i = 0; i < nwins && n < 64; i++) {
         win_t *w = &wins[i];
-        if (w->ws != cur || w->hidden || get_bool(w->el, kAXMinimizedAttribute) || !is_shown(shown, w->wid)) continue;
+        if (w->ws != cur || w->hidden || get_bool(w->el, kAXMinimizedAttribute)) continue;
+        bool listed = is_shown(shown, w->wid);
+        if (now - w->shown_at > FRESH_S) w->was_listed = listed;
+        else listed = listed || w->was_listed;
+        if (!listed) continue;
         bool seen = false;
         for (int j = 0; j < n && !seen; j++) seen = pids[j] == w->pid;
         if (!seen) pids[n++] = w->pid;
     }
     if (shown) CFRelease(shown);
-    menubar_update(cur, pids, n, apps_frontmost());
+    menubar_update(cur, pids, n, now < fresh_until && fresh_front ? fresh_front : apps_frontmost());
 }
 
 void wm_focus_wid(uint32_t wid) {

@@ -5,17 +5,19 @@
 #include <unistd.h>
 #include "jd.h"
 
-// Optional menu bar item: the current desktop's key in an outlined box, then one line-art
-// glyph per app on that desktop. The focused app's glyph is cut out of a filled tile.
+// Optional menu bar item: one line-art glyph per app on the current desktop, then the
+// desktop's key in an outlined box at the right end. The item grows and shrinks to the
+// left, so the key stays where it is. The focused app's glyph is cut out of a filled tile.
 // The image is a template, so macOS tints it for light and dark menu bars.
 
 enum {
     MAX_APPS = 64,
     SCALE = 2,       // pixels per point
-    HEIGHT = 18,     // points
-    SLOT = 16,       // key box and glyph tile size
+    HEIGHT = 22,     // points, the status item's thickness
+    SLOT = 20,       // key box and glyph tile size
+    PAD = 1,         // tile edge to glyph
     GAP = 4,
-    GLYPH_PX = 32,
+    GLYPH_PX = 40,
     RIM = 2,         // pixels shaved off the icon's outline
     LO = 75,         // colour distance from the tile where the glyph starts to show...
     HI = 195,        // ...and where it is fully opaque
@@ -123,15 +125,17 @@ static CGImageRef mask_for(pid_t pid) {
     return mask;
 }
 
-static void draw_key(CGContextRef c, char key) {
-    CGRect box = CGRectMake(0.5, (HEIGHT - SLOT) / 2.0 + 0.5, SLOT - 1, SLOT - 1);
-    CGPathRef path = CGPathCreateWithRoundedRect(box, 3.5, 3.5, NULL);
+// The key box sits in the slot at x; the glyph is centred by its real outline bounds, not
+// the line box, and snapped to the pixel grid so it stays crisp at 1x and 2x.
+static void draw_key(CGContextRef c, CGFloat x, char key) {
+    CGRect box = CGRectMake(x + 0.5, (HEIGHT - SLOT) / 2.0 + 0.5, SLOT - 1, SLOT - 1);
+    CGPathRef path = CGPathCreateWithRoundedRect(box, 4.5, 4.5, NULL);
     CGContextSetLineWidth(c, 1);
     CGContextAddPath(c, path);
     CGContextStrokePath(c);
     CGPathRelease(path);
 
-    CTFontRef font = CTFontCreateUIFontForLanguage(kCTFontUIFontEmphasizedSystem, 11, NULL);
+    CTFontRef font = CTFontCreateUIFontForLanguage(kCTFontUIFontEmphasizedSystem, 13, NULL);
     CFStringRef text = CFStringCreateWithBytes(NULL, (const UInt8 *)&key, 1, kCFStringEncodingASCII, false);
     CFTypeRef keys[] = {kCTFontAttributeName, kCTForegroundColorFromContextAttributeName};
     CFTypeRef vals[] = {font, kCFBooleanTrue};
@@ -140,7 +144,8 @@ static void draw_key(CGContextRef c, char key) {
     CFAttributedStringRef str = CFAttributedStringCreate(NULL, text, attrs);
     CTLineRef line = CTLineCreateWithAttributedString(str);
     CGRect b = CTLineGetBoundsWithOptions(line, kCTLineBoundsUseGlyphPathBounds);
-    CGContextSetTextPosition(c, SLOT / 2.0 - CGRectGetMidX(b), HEIGHT / 2.0 - CGRectGetMidY(b));
+    CGFloat px = x + SLOT / 2.0 - CGRectGetMidX(b), py = HEIGHT / 2.0 - CGRectGetMidY(b);
+    CGContextSetTextPosition(c, round(px * SCALE) / SCALE, round(py * SCALE) / SCALE);
     CTLineDraw(line, c);
     CFRelease(line);
     CFRelease(str);
@@ -150,9 +155,9 @@ static void draw_key(CGContextRef c, char key) {
 }
 
 static void draw_app(CGContextRef c, CGRect slot, CGImageRef mask, bool focused) {
-    CGRect art = CGRectInset(slot, 2, 2);
+    CGRect art = CGRectInset(slot, PAD, PAD);
     if (focused) {
-        CGPathRef tile = CGPathCreateWithRoundedRect(slot, 4, 4, NULL);
+        CGPathRef tile = CGPathCreateWithRoundedRect(slot, 5, 5, NULL);
         CGContextAddPath(c, tile);
         CGContextFillPath(c);
         CGPathRelease(tile);
@@ -163,7 +168,7 @@ static void draw_app(CGContextRef c, CGRect slot, CGImageRef mask, bool focused)
 }
 
 static void render(int ws, const pid_t *pids, int n, pid_t front) {
-    int width = SLOT + (n ? GAP + n * SLOT + (n - 1) * GAP : 0);
+    int width = (n + 1) * SLOT + n * GAP;
     CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
     CGContextRef c = CGBitmapContextCreate(NULL, width * SCALE, HEIGHT * SCALE, 8, 0, cs,
                                            (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
@@ -174,11 +179,11 @@ static void render(int ws, const pid_t *pids, int n, pid_t front) {
     CGContextSetGrayFillColor(c, 1, 1);
     CGContextSetGrayStrokeColor(c, 1, 1);
 
-    draw_key(c, config_key_char(ws - 1));
     for (int i = 0; i < n; i++) {
-        CGRect slot = CGRectMake(SLOT + GAP + i * (SLOT + GAP), (HEIGHT - SLOT) / 2.0, SLOT, SLOT);
+        CGRect slot = CGRectMake(i * (SLOT + GAP), (HEIGHT - SLOT) / 2.0, SLOT, SLOT);
         draw_app(c, slot, mask_for(pids[i]), pids[i] == front);
     }
+    draw_key(c, n * (SLOT + GAP), config_key_char(ws - 1));
 
     CGImageRef strip = CGBitmapContextCreateImage(c);
     CGContextRelease(c);
