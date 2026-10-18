@@ -10,6 +10,7 @@ The Tab switcher moves between the windows of the current desktop. It has three 
 - just-desktops always captures `⌥Tab` and `⌥⇧Tab`, so apps never see them.
 - `⌥` is the base modifier. See [modifier](workspaces.md#modifier).
 - The list holds only windows that are really shown. Windows of other Spaces, hidden apps and windows parked off screen (such as Raycast's idle window) are left out.
+- The list is in the [menu bar](menubar.md#the-strip)'s order: grouped by app in order of each app's first window, an app's windows in a fixed order.
 
 ## Styles
 

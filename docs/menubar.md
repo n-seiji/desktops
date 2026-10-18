@@ -15,7 +15,7 @@ The command line default is `off`. The app always has an item: its default is `o
 ## The strip
 
 - One monochrome glyph per window. Two Finder windows show two Finder glyphs.
-- Glyphs are grouped by app. An app's windows stay in a fixed order, so changing focus never reshuffles them.
+- Glyphs are grouped by app. An app's windows stay in a fixed order, so changing focus never reshuffles them. The [switcher](switcher.md) lists windows in the same order.
 - The current desktop's key sits at the right end in an outlined box. The item grows and shrinks to the left, so the key stays put.
 - The focused window's glyph (only that one, not every window of its app) is cut out of a filled tile.
 - The glyphs are template images, so macOS tints them for light and dark menu bars.
