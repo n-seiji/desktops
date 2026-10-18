@@ -28,7 +28,12 @@ If you want tiling, layouts, colors or more options, use those projects. just-de
 
 - Each switcher row shows the app name when the app has one window. With several, rows show the window titles ("App 2" when a title is empty or repeated).
 - The switcher panel exists only while ⌥ is held after a Tab. Nothing is held in memory while it is closed.
-- ⌥Tab and ⌥⇧Tab are captured by just-desktops only while the switcher is on (the default), so apps never see those keys then. With `switcher = off` they pass through to apps and no switcher code runs.
+- ⌥Tab and ⌥⇧Tab are captured by just-desktops unless `switcher = off`, so apps never see those keys then. With `switcher = off` they pass through to apps and no switcher code runs. `switcher = on` still means `list`; any other unknown value also gives `list`.
+- `switcher` picks the style (the keys behave the same in all of them):
+  - `list` (default): a panel with one row per window.
+  - `square`: a glass square in the middle of the screen with one window shown large (its screenshot, app icon and name, a counter and a row of dots). ⌥Tab slides the next window in from the right, ⌥⇧Tab from the left.
+  - `peek`: the same square, but the previous and next windows float outside it, smaller and fainter, and glide into place.
+- `square` and `peek` show a live screenshot of each window, which needs Screen Recording permission. just-desktops asks for it once at launch (and only for these two styles; `list` and `off` never ask). Until it is granted the cards show the app icon instead, and everything else works the same. Only the selected window and its two neighbours are captured, as you move, and the images are dropped as soon as they are drawn. The grant of an ad-hoc signed binary is tied to its code hash, so after a rebuild (`mise run build`, or upgrading through mise) macOS asks again and you grant it again.
 - The switcher lists only windows that are really shown: windows of other Spaces, hidden apps or parked off screen (such as Raycast's idle window) are left out.
 - The desktop keys are set with `keys` in the config (digits and letters, at most 10). Other keys pass through untouched.
 - Apps can be pinned to a desktop in the config file. A pinned app's windows start on that desktop, both existing ones and ones opened later. The pin applies only when a window first appears.
@@ -69,7 +74,7 @@ Upgrading through mise changes the binary path, so run `mise run service` again 
 
 ```
 border = on
-switcher = on
+switcher = list
 menubar = off
 keys = 1 2 3 q w e
 com.apple.Safari = 1
@@ -95,7 +100,7 @@ Pushing a `v*` tag makes GitHub Actions publish arm64 and x86_64 binaries to Rel
 
 - Windows are parked on the main display only; multiple displays are not supported yet.
 - After a crash, parked windows stay in the bottom-right corner until the next launch, which moves them back on screen.
-- ⌥Tab, ⌥⇧Tab and the ⌥ / ⌥⇧ modifiers are fixed (the switcher can only be turned on or off); only the desktop keys are configurable.
+- ⌥Tab, ⌥⇧Tab and the ⌥ / ⌥⇧ modifiers are fixed (`switcher` only picks the style or turns it off); only the desktop keys are configurable.
 
 ## License
 

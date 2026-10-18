@@ -3,8 +3,10 @@
 # Draw the border around the focused window (on|off)
 border = on
 
-# ⌥Tab window switcher (on|off). When off, ⌥Tab is not captured and passes through to apps
-switcher = on
+# ⌥Tab window switcher: list | square | peek | off (on = list). When off, ⌥Tab is not captured and passes through to apps.
+# square and peek show a screenshot of each window and ask for Screen Recording permission at launch; until it is
+# granted they show the app icon. After a rebuild macOS asks again (the grant follows the binary's code hash).
+switcher = list
 
 # Menu bar item (on|off): the current desktop's key and the apps on it. Costs about 5MB of memory when on
 menubar = off
