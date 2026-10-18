@@ -1,9 +1,13 @@
-#include "jd.h"
-#include "title.h"
-#include "skylight.h"
+#include "wm.h"
+#include "apps.h"
+#include "border.h"
+#include "config.h"
+#include "menubar.h"
 #include "order.h"
 #include "select.h"
 #include "shown.h"
+#include "skylight.h"
+#include "title.h"
 #include <dispatch/dispatch.h>
 #include <math.h>
 #include <stdlib.h>

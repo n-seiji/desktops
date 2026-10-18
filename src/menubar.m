@@ -1,11 +1,15 @@
 #import <AppKit/AppKit.h>
 #import <CoreText/CoreText.h>
-#include <string.h>
-#include <unistd.h>
+#include "menubar.h"
+#include "app.h"
+#include "apps.h"
+#include "config.h"
 #include "glyph.h"
-#include "jd.h"
 #include "select.h"
 #include "strip.h"
+#include "wm.h"
+#include <string.h>
+#include <unistd.h>
 
 // Optional menu bar item: one line-art glyph per window on the current desktop (an app's
 // windows side by side), then the desktop's key in an outlined box at the right end. The

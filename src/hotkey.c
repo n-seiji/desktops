@@ -1,5 +1,8 @@
-#include "jd.h"
+#include "hotkey.h"
+#include "config.h"
 #include "keyrules.h"
+#include "switcher.h"
+#include "wm.h"
 #include <dispatch/dispatch.h>
 
 // Hotkeys, with ⌥ standing for the base modifier (`modifier` in config: opt, cmd or ctrl; default opt):

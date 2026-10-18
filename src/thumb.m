@@ -1,5 +1,5 @@
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
-#include "jd.h"
+#include "thumb.h"
 
 // Window thumbnails for the card switchers. ScreenCaptureKit is linked weakly and nothing here
 // runs unless a card style is configured, so the list and off styles pay nothing for it.

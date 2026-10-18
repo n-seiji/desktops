@@ -1,8 +1,12 @@
-#include "swkit.h"
+#include "switcher_card.h"
 #include "appearance.h"
+#include "apps.h"
 #include "cardmath.h"
-#include "skylight.h"
 #include "select.h"
+#include "skylight.h"
+#include "swkit.h"
+#include "thumb.h"
+#include "wm.h"
 #include <dispatch/dispatch.h>
 #include <malloc/malloc.h>
 #include <math.h>

@@ -1,5 +1,5 @@
 #pragma once
-#include "jd.h"
+#include "common.h"
 #include <CoreText/CoreText.h>
 
 // Drawing and window helpers shared by the list (switcher.c) and card (switcher_card.c) switchers.
