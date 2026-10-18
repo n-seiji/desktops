@@ -1,3 +1,4 @@
+#include "appearance.h"
 #include "jd.h"
 #include "border_geom.h"
 #include "skylight.h"

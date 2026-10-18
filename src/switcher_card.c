@@ -1,4 +1,5 @@
 #include "swkit.h"
+#include "appearance.h"
 #include "cardmath.h"
 #include "skylight.h"
 #include "select.h"

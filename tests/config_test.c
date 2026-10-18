@@ -1,4 +1,4 @@
-#include "../src/jd.h"
+#include "../src/config.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>

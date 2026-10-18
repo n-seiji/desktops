@@ -3,6 +3,7 @@
 #include <dlfcn.h>
 #include <spawn.h>
 #include "jd.h"
+#include "config_write.h"
 
 // Everything the .app does for a user without a terminal: the first-run permission panel, the
 // login item, and the config file. Loaded lazily; the bare binary never reaches this code.

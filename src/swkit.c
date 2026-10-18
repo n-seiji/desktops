@@ -1,4 +1,5 @@
 #include "swkit.h"
+#include "appearance.h"
 #include "skylight.h"
 #include <math.h>
 #include <stdlib.h>
