@@ -14,15 +14,11 @@ run = [
 
 [tasks.test]
 description = "Run unit tests"
-run = [
-  "mkdir -p bin",
-  "clang $CFLAGS tests/title_test.c src/title.c -o bin/title_test -framework CoreFoundation",
-  "bin/title_test",
-  "clang $CFLAGS tests/config_test.c src/config.c src/config_write.c -o bin/config_test",
-  "bin/config_test",
-  "clang $CFLAGS tests/config_write_test.c src/config_write.c -o bin/config_write_test",
-  "bin/config_write_test",
-]
+run = "scripts/run-tests.sh"
+
+[tasks.test-san]
+description = "Run unit tests under AddressSanitizer and UndefinedBehaviorSanitizer (SANITIZERS=undefined to drop one)"
+run = "SAN=\"-fsanitize=${SANITIZERS:-address,undefined} -fno-sanitize-recover=all -fno-omit-frame-pointer\" scripts/run-tests.sh"
 
 [tasks.run]
 description = "Build and run in the foreground"
