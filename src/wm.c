@@ -325,6 +325,18 @@ void wm_init(void) {
     border_on = config_border();
 }
 
+// While settling, a parked window that takes focus is left alone, so nothing would look at it again once the
+// quiet period ends. One check per quiet period is queued for then; only the newest one runs.
+static unsigned recheck_gen;
+
+static void recheck_after_settle(void) {
+    unsigned gen = ++recheck_gen;
+    double wait = settle_until - CFAbsoluteTimeGetCurrent() + 0.02;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (wait > 0 ? wait : 0) * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        if (gen == recheck_gen) wm_on_focus();
+    });
+}
+
 void wm_on_focus(void) {
     win_t *w = focused();
     if (w && w->ws != cur) {
@@ -332,7 +344,10 @@ void wm_on_focus(void) {
         // settling after a desktop change or it is the one we just parked.
         double t = CFAbsoluteTimeGetCurrent();
         bool settling = t < settle_until;
-        if (settling) settle_until = t + SETTLE_S;
+        if (settling) {
+            settle_until = t + SETTLE_S;
+            recheck_after_settle();
+        }
         if (settling || w->wid == stale) return;
         w->ws = cur;
         show(w);
