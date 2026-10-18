@@ -26,8 +26,6 @@ static void flag(const char *what, bool got, bool want) {
 }
 
 int main(void) {
-    near("thickness of the default radius", border_edge_thickness(DEFAULT_RADIUS), 20.5);
-
     // A window of radius 16 whose ring's outer rect is 500x300 at (100, 50): the top and bottom edges
     // are 20.5pt tall and snap out to 21; the sides are 2pt wide and run between them.
     CGRect outer = {{100, 50}, {500, 300}};

@@ -11,8 +11,6 @@
 
 enum { EDGE_TOP, EDGE_BOTTOM, EDGE_LEFT, EDGE_RIGHT, EDGE_COUNT };
 
-// Height of the top and bottom edge windows for a window with corner radius `radius`.
-CGFloat border_edge_thickness(CGFloat radius);
 // Edge window e around outer (the ring's outer rect), snapped out to whole points: the ring itself
 // sits at fractional offsets inside, and a window at a half-point origin leaves an unpainted row.
 CGRect border_edge_rect(int e, CGRect outer, CGFloat radius);

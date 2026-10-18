@@ -3,12 +3,13 @@
 
 #define SIDE_THICKNESS ceil(RING_WIDTH) // left/right only hold the straight part of the ring
 
-CGFloat border_edge_thickness(CGFloat radius) {
+// Height of the top and bottom edge windows: tall enough to hold the corner arcs.
+static CGFloat edge_thickness(CGFloat radius) {
     return radius + RING_OUTSET;
 }
 
 CGRect border_edge_rect(int e, CGRect o, CGFloat radius) {
-    CGFloat t = border_edge_thickness(radius), s = SIDE_THICKNESS;
+    CGFloat t = edge_thickness(radius), s = SIDE_THICKNESS;
     CGRect r;
     switch (e) {
     case EDGE_TOP: r = CGRectMake(o.origin.x, o.origin.y, o.size.width, t); break;
@@ -26,5 +27,5 @@ CGFloat border_ring_radius(CGFloat radius, CGSize outer) {
 }
 
 bool border_too_small(CGSize outer, CGFloat radius) {
-    return outer.width < 2 * border_edge_thickness(radius) || outer.height < 2 * border_edge_thickness(radius);
+    return outer.width < 2 * edge_thickness(radius) || outer.height < 2 * edge_thickness(radius);
 }
