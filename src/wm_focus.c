@@ -25,18 +25,28 @@ static CGPoint hide_point(void) {
     return shown_park_point(CGDisplayBounds(CGMainDisplayID()));
 }
 
+// Some apps animate a move while AXEnhancedUserInterface is on (Chrome, once an assistive app such
+// as a password manager turns it on), so a parked window would slide into the corner on screen.
+static void move(win_t *w, CGPoint p) {
+    app_t *a = wm_find_app(w->pid);
+    bool eui = a && ax_bool(a->el, CFSTR("AXEnhancedUserInterface"));
+    if (eui) AXUIElementSetAttributeValue(a->el, CFSTR("AXEnhancedUserInterface"), kCFBooleanFalse);
+    ax_set_position(w->el, p);
+    if (eui) AXUIElementSetAttributeValue(a->el, CFSTR("AXEnhancedUserInterface"), kCFBooleanTrue);
+}
+
 void wm_hide(win_t *w) {
     if (w->hidden) return;
     CGPoint p;
     if (!ax_value(w->el, kAXPositionAttribute, kAXValueTypeCGPoint, &p)) return;
     w->saved = p;
-    ax_set_position(w->el, hide_point());
+    move(w, hide_point());
     w->hidden = true;
 }
 
 static void show(win_t *w) {
     if (!w->hidden) return;
-    ax_set_position(w->el, w->saved);
+    move(w, w->saved);
     w->hidden = false;
     w->shown_at = CFAbsoluteTimeGetCurrent();
 }
