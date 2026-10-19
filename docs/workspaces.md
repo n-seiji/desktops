@@ -1,6 +1,6 @@
 # Workspaces
 
-just-desktops keeps its own desktops. Windows of inactive desktops are parked in a corner of the main display, so macOS Spaces and SIP are never touched. This page covers history, pins, pulling windows, the border and the modifier.
+just-desktops keeps its own desktops. Windows of inactive desktops are parked in a corner of the main display, so macOS Spaces and SIP are never touched. This page covers history, pins, apps on every desktop, pulling windows, the border and the modifier.
 
 ## Desktops and keys
 
@@ -13,6 +13,7 @@ just-desktops keeps its own desktops. Windows of inactive desktops are parked in
 `⌥[` goes back to the window you had focused before, and `⌥]` goes forward again, like a browser. It remembers the last 10 windows, across desktops. If the window is on another desktop, that desktop is switched to first.
 
 - Closed and minimized windows are skipped and dropped from the history.
+- A window of an [app on every desktop](#apps-on-every-desktop) is focused on the current desktop, without switching.
 - Focusing a new window after going back drops the entries ahead. Closing a window makes macOS focus another one, and that one is recorded too.
 - Windows you pass through with `⌥Tab` while `switcher = off` are not recorded. Only the one you end on is.
 - The history is lost when just-desktops restarts.
@@ -20,7 +21,7 @@ just-desktops keeps its own desktops. Windows of inactive desktops are parked in
 
 ## Pulling windows
 
-Focusing a window that belongs to another desktop (Cmd-Tab, Dock, a shortcut, unhiding the app) moves that one window to the current desktop. It does not switch desktops. Pinned apps are pulled too: a pinned app's newly focused window comes to the current desktop, not to its pinned one.
+Focusing a window that belongs to another desktop (Cmd-Tab, Dock, a shortcut, unhiding the app) moves that one window to the current desktop. It does not switch desktops. Apps on every desktop are left out, since they are visible everywhere (see [Apps on every desktop](#apps-on-every-desktop)). Pinned apps are pulled too: a pinned app's newly focused window comes to the current desktop, not to its pinned one.
 
 ## Pins
 
@@ -35,6 +36,23 @@ com.googlecode.iterm2 = 2
 - A window that is focused when it appears, or that you focus later, is pulled to the current desktop like any other. A pin never keeps away a window you are using.
 - The pin is applied once, when the window first appears.
 - A pin to a desktop number higher than the number of `keys` is ignored.
+
+## Apps on every desktop
+
+Set `<bundle id> = none` in the config for an app you call up with a shortcut, such as a quick terminal or a password manager.
+
+```
+com.mitchellh.ghostty = none
+```
+
+- The app's windows are never parked. Every window of the app is visible on every desktop.
+- They are in ⌥Tab and the menu bar on every desktop, so they use up its slots sooner and overflow into the `+k` panel earlier. They get the border.
+- Focusing them, in ⌥Tab or otherwise, neither pulls them nor switches desktops.
+- ⌥⇧ + key does nothing while one of them has focus.
+- ⌥ + another desktop's key switches desktops and focuses that desktop's last window, if it has one; a quick terminal that hides on focus loss closes then. The current desktop's key does nothing.
+- The setting is per app, so all of an app's windows are affected, not only the quick one.
+- Changes apply on restart. A window of the app left in the corner after a crash is brought back at the next launch.
+- For a password manager, also add it to `no_preview`: otherwise the square switcher screenshots it like any listed window.
 
 ## Border
 

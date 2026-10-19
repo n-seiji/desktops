@@ -33,7 +33,12 @@ static const char sample[] =
     "\n"
     "# Pin an app to a desktop: <bundle id> = <desktop number>\n"
     "# Find a bundle id with: osascript -e 'id of app \"Safari\"'\n"
-    "# com.apple.Safari = 1\n";
+    "# com.apple.Safari = 1\n"
+    "\n"
+    "# Keep an app on every desktop (never parked, in Option-Tab and the menu bar): <bundle id> = none\n"
+    "# For apps you call up with a shortcut, such as a quick terminal or a password manager.\n"
+    "# For a password manager, also add it to no_preview so the square switcher never screenshots it.\n"
+    "# com.mitchellh.ghostty = none\n";
 
 const char *config_sample(void) { return sample; }
 
