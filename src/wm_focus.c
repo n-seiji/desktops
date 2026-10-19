@@ -3,6 +3,7 @@
 #include "ax.h"
 #include "border.h"
 #include "config.h"
+#include "hist.h"
 #include "menubar.h"
 #include "shown.h"
 #include <dispatch/dispatch.h>
@@ -14,6 +15,9 @@
 static uint32_t last_focus[JD_MAX_WS + 1];
 static uint32_t stale; // parked window macOS still reports as focused
 static double settle_until; // until then, parked windows macOS activates on its own are not pulled
+static hist_t hist = {.at = -1};
+static double hold_until; // until then, only the window wm_history went to is recorded; 0 when recording
+static bool hold_switcher; // ⌥Tab is stepping through windows: they are not recorded
 
 // After a desktop change macOS hands activation from one parked window's app to the next,
 // about a second apart; each one extends the quiet period a user's Cmd-Tab has to wait out.
@@ -127,6 +131,13 @@ void wm_on_focus(void) {
     if (w) {
         stale = 0;
         last_focus[cur_ws] = w->wid;
+        if (!hold_switcher) {
+            bool target = hist.at >= 0 && w->wid == hist.wid[hist.at];
+            if (target || CFAbsoluteTimeGetCurrent() >= hold_until) {
+                hold_until = 0;
+                hist_visit(&hist, w->wid);
+            }
+        }
     }
     refresh_border(w);
     wm_refresh_menubar(w);
@@ -182,6 +193,45 @@ void wm_focus_wid(uint32_t wid) {
     wm_mark_fresh(wid, CFAbsoluteTimeGetCurrent());
     wm_refresh_ui();
     refresh_menubar_later();
+}
+
+void wm_history_hold(void) { hold_switcher = true; }
+
+void wm_history_release(uint32_t wid) {
+    hold_switcher = false;
+    if (!wid) {
+        wm_on_focus(); // no focus notice follows the release, so record the window it ended on
+        return;
+    }
+    // Asking macOS now may still name an earlier Tab's window, so record the one we focused. A late notice
+    // of an earlier window stays unrecorded until wid's own notice (or the settle time) ends the hold.
+    hist_visit(&hist, wid);
+    hold_until = CFAbsoluteTimeGetCurrent() + SETTLE_S;
+}
+
+static bool usable(uint32_t wid) {
+    win_t *w = wm_find_win(wid);
+    return w && !w->minimized && w->ws >= 1 && w->ws <= config_workspaces();
+}
+
+static unsigned history_gen;
+
+void wm_history(int dir) {
+    uint32_t wid = hist_step(&hist, dir, usable);
+    win_t *w = wm_find_win(wid);
+    if (!w) return;
+    hold_until = CFAbsoluteTimeGetCurrent() + SETTLE_S;
+    // If focusing wid fails, a window clicked meanwhile must still be recorded once the hold ends.
+    unsigned gen = ++history_gen;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (SETTLE_S + 0.02) * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        if (gen == history_gen) wm_on_focus();
+    });
+    if (w->ws != cur_ws) {
+        last_focus[w->ws] = wid;
+        wm_switch(w->ws);
+    } else {
+        wm_focus_wid(wid);
+    }
 }
 
 void wm_restore_all(void) {

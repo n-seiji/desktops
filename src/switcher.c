@@ -288,12 +288,15 @@ static uint32_t *snap;
 static int snap_n, snap_at;
 
 static void instant_end(void) {
+    uint32_t end = snap ? snap[snap_at] : 0;
     free(snap);
     snap = NULL;
     snap_n = 0;
+    wm_history_release(end);
 }
 
 static void instant_step(int dir) {
+    wm_history_hold();
     if (!snap) {
         int start;
         snap_n = wm_window_ids(dir, &snap, &start);

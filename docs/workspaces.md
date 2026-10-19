@@ -1,12 +1,22 @@
 # Workspaces
 
-just-desktops keeps its own desktops. Windows of inactive desktops are parked in a corner of the main display, so macOS Spaces and SIP are never touched. This page covers pins, pulling windows, the border and the modifier.
+just-desktops keeps its own desktops. Windows of inactive desktops are parked in a corner of the main display, so macOS Spaces and SIP are never touched. This page covers history, pins, pulling windows, the border and the modifier.
 
 ## Desktops and keys
 
 - The desktop keys are set with `keys` in the config: digits and letters, at most 10. The n-th key is Desktop n. Other keys pass through untouched.
 - On exit, every parked window is moved back. After a crash, parked windows stay in the bottom-right corner until the next launch.
 - Windows are parked on the main display only.
+
+## History
+
+`⌥[` goes back to the window you had focused before, and `⌥]` goes forward again, like a browser. It remembers the last 10 windows, across desktops. If the window is on another desktop, that desktop is switched to first.
+
+- Closed and minimized windows are skipped and dropped from the history.
+- Focusing a new window after going back drops the entries ahead. Closing a window makes macOS focus another one, and that one is recorded too.
+- Windows you pass through with `⌥Tab` while `switcher = off` are not recorded. Only the one you end on is.
+- The history is lost when just-desktops restarts.
+- On US layouts `⌥[` and `⌥]` no longer type “ and ‘. `⌥⇧[` and `⌥⇧]` still type ” and ’.
 
 ## Pulling windows
 
@@ -39,13 +49,14 @@ The border is a thin ring floating 3pt off the focused window, brighter along th
 
 `⌥` in these docs is the base modifier. Option is the default. Set `modifier = cmd` or `modifier = ctrl` for Command or Control. `option`, `alt`, `command` and `control` are accepted too, in any case. An unknown value gives Option.
 
-Every hotkey follows it: the desktop keys, moving a window, the switcher, releasing it to commit, Esc and the desktop keys while the panel is open. The Shift variants stay.
+Every hotkey follows it: the desktop keys, moving a window, `⌥[` and `⌥]`, the switcher, releasing it to commit, Esc and the desktop keys while the panel is open. The Shift variants stay.
 
 A key fires only when exactly the base modifier (plus Shift) is down. With `modifier = cmd`, holding Option or Control in addition lets the key through untouched. There is no Hyper key.
 
 Command and Control collide with system shortcuts, and just-desktops swallows these keys system wide while it runs.
 
 - With `cmd`, Cmd-Tab (the macOS app switcher) and Cmd-digit (app shortcuts such as browser tabs 1 to 9) stop working.
-- With `ctrl`, Ctrl-Tab and Ctrl-digit stop working. These are browser and terminal tab shortcuts, and Mission Control's desktop shortcuts if you enabled them.
+- With `cmd`, `⌘[` and `⌘]` (back and forward in browsers) stop working too.
+- With `ctrl`, Ctrl-Tab and Ctrl-digit stop working, and so does `⌃[`, which is Esc in terminals. These are browser and terminal tab shortcuts, and Mission Control's desktop shortcuts if you enabled them.
 
 just-desktops does not work around this. Choose a modifier whose combinations you do not need.

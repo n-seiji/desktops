@@ -10,6 +10,9 @@ void wm_switch(int ws);
 void wm_move_focused(int ws);
 int wm_current(void);
 void wm_focus_wid(uint32_t wid);
+void wm_history(int dir); // -1 back, +1 forward through the focus history, across desktops
+void wm_history_hold(void); // windows focused by ⌥Tab are not recorded until wm_history_release
+void wm_history_release(uint32_t wid); // records wid, the window ⌥Tab ended on (0: whatever macOS reports focused)
 void wm_restore_all(void); // every parked window back on screen
 
 // The switchable windows of this desktop for the switchers, in tracking order. *out is malloc'd and

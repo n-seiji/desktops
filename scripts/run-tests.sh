@@ -23,6 +23,7 @@ run select_test src/select.c
 run keyrules_test src/keyrules.c
 run strip_test src/strip.c
 run order_test src/order.c
+run hist_test src/hist.c
 run shown_test src/shown.c -framework ApplicationServices
 run cardmath_test src/cardmath.c -framework ApplicationServices
 run border_geom_test src/border_geom.c -framework ApplicationServices
