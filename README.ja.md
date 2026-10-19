@@ -11,27 +11,29 @@
 
 <table>
   <tr>
-    <td align="center" valign="top" width="20%">
+    <td align="center" valign="top" width="33%">
       <img src="assets/tile-windows.svg" width="160" alt="3 枚のウィンドウは動かず、フォーカスだけが次のウィンドウへ移る"><br>
       <b>ウィンドウの切り替え</b><br>
       <sub>⌥Tab で、このデスクトップのウィンドウを順に選びます。</sub>
     </td>
-    <td align="center" valign="top" width="20%">
+    <td align="center" valign="top" width="33%">
       <img src="assets/tile-desktops.svg" width="160" alt="⌥1、⌥2、⌥3 を押すたびに、画面のウィンドウが入れ替わる"><br>
       <b>デスクトップの切り替え</b><br>
       <sub>⌥1、⌥2、⌥3。最大 10 個。</sub>
     </td>
-    <td align="center" valign="top" width="20%">
+    <td align="center" valign="top" width="33%">
       <img src="assets/tile-none.svg" width="160" alt="奥のデスクトップが替わっても、1 枚のウィンドウが同じ場所に残る"><br>
       <b>すべてのデスクトップに出す</b><br>
       <sub>ターミナルやパスワード管理アプリなど、選んだアプリをどのデスクトップにも出します。</sub>
     </td>
-    <td align="center" valign="top" width="20%">
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="33%">
       <img src="assets/tile-border.svg" width="160" alt="フォーカス中のウィンドウを囲む枠"><br>
       <b>入力先が分かる</b><br>
       <sub>フォーカス中のウィンドウを、細い枠で囲みます。</sub>
     </td>
-    <td align="center" valign="top" width="20%">
+    <td align="center" valign="top" width="33%">
       <img src="assets/tile-noresize.svg" width="160" alt="ウィンドウの大きさは変わらない"><br>
       <b>サイズは変えない</b><br>
       <sub>大きさや配置は、Raycast などに任せます。</sub>
