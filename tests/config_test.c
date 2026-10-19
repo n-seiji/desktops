@@ -56,6 +56,18 @@ static void check_key_char(int i, char want) {
     }
 }
 
+static void check_pin(const char *id, int want_ws, bool want_unmanaged) {
+    int ws = config_assign(id);
+    if (ws != want_ws) {
+        printf("FAIL config_assign(\"%s\") = %d; want %d\n", id, ws, want_ws);
+        failed++;
+    }
+    if (config_unmanaged(id) != want_unmanaged) {
+        printf("FAIL config_unmanaged(\"%s\") = %d; want %d\n", id, !want_unmanaged, want_unmanaged);
+        failed++;
+    }
+}
+
 static void check_no_preview(const char *id, bool want) {
     if (config_no_preview(id) != want) {
         printf("FAIL config_no_preview(\"%s\") = %d; want %d\n", id, !want, want);
@@ -91,6 +103,11 @@ int main(void) {
     for (int i = 0; i < 400; i++) fprintf(f, " com.example.long%d", i);
     fprintf(f, " com.example.%0150d com.example.after\n", 7); // one id too long for the buffer, then one more
     fputs("modifier = ctrl\n", f); // read after the long line: it must not have been split
+    fputs("com.example.floating = none\ncom.example.caps = NONE\ncom.example.bogus = nonex\n", f);
+    fputs("com.example.tight=none\ncom.example.note = none # quick\ncom.example.glued = none#quick\n", f);
+    fputs("com.example.pinfirst = 2\ncom.example.pinfirst = none\n", f);
+    fputs("com.example.nonefirst = none\ncom.example.nonefirst = 2\n", f);
+    fputs("com.example.neg = -1\ncom.example.prefix = none2\n", f);
     fclose(f);
     setenv("HOME", dir, 1);
     config_load();
@@ -118,6 +135,20 @@ int main(void) {
         printf("FAIL no_preview line disturbed pins\n");
         failed++;
     }
+
+    check_pin("com.example.floating", 0, true);
+    check_pin("com.example.caps", 0, true);
+    check_pin("com.example.tight", 0, true);
+    check_pin("com.example.note", 0, true);
+    check_pin("com.example.glued", 0, true);
+    check_pin("com.example.pinned", 2, false);
+    check_pin("com.example.bogus", 0, false);
+    check_pin("com.example.pinfirst", 2, false);
+    check_pin("com.example.nonefirst", 0, true);
+    check_pin("com.example.neg", 0, false);
+    check_pin("com.example.prefix", 0, false);
+    check_pin("com.example.unknown", 0, false);
+    check_pin(NULL, 0, false);
 
     check_key_char(0, '1');
     check_key_char(2, '3');

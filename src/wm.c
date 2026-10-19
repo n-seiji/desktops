@@ -156,7 +156,7 @@ static void add_app(pid_t pid, int assign, bool nopreview, int attempt) {
 }
 
 void wm_add_app(pid_t pid, const char *bundle_id) {
-    add_app(pid, config_assign(bundle_id), config_no_preview(bundle_id), 0);
+    if (!config_unmanaged(bundle_id)) add_app(pid, config_assign(bundle_id), config_no_preview(bundle_id), 0);
     if (menubar_ready()) wm_refresh_menubar(wm_focused());
 }
 

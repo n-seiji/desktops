@@ -32,3 +32,7 @@ keys = 1 2 3 q w e
 com.apple.Safari = 1
 com.googlecode.iterm2 = 2
 com.tinyspeck.slackmacgap = 3
+
+# Keep an app on no desktop (never parked, not in ⌥Tab or the menu bar): <bundle id> = none
+# For apps you call up with a shortcut, such as a quick terminal or a password manager.
+# com.mitchellh.ghostty = none

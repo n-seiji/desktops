@@ -33,7 +33,10 @@ static const char sample[] =
     "\n"
     "# Pin an app to a desktop: <bundle id> = <desktop number>\n"
     "# Find a bundle id with: osascript -e 'id of app \"Safari\"'\n"
-    "# com.apple.Safari = 1\n";
+    "# com.apple.Safari = 1\n"
+    "\n"
+    "# Keep an app on no desktop (never parked, not in Option-Tab or the menu bar): <bundle id> = none\n"
+    "# com.mitchellh.ghostty = none\n";
 
 const char *config_sample(void) { return sample; }
 

@@ -73,8 +73,8 @@ mise でアップグレードすると、バイナリのパスが変わります
 | `menubar` | `on`（または `strip`）、`icon`、`off` | `off`（アプリ版は `on`） | メニューバーの項目。ウィンドウごとのアイコンか、小さなアプリアイコンだけか。アプリ版は常に項目を出すので、`off` は `icon` と同じ |
 | `keys` | 数字か英字を 10 個まで | `1 2 3 q w e` | n 番目のキーがデスクトップ n |
 | `modifier` | `opt`、`cmd`、`ctrl` | `opt` | すべてのホットキーの基本の修飾キー。[modifier](docs/workspaces.md#modifier) を参照 |
-| `no_preview` | bundle id | なし | square スイッチャーで画面を撮らないアプリ。複数行書ける |
-| `<bundle id>` | `<n>` | なし | アプリをデスクトップ n に固定する |
+| `no_preview` | bundle id | — | square スイッチャーで画面を撮らないアプリ。複数行書ける |
+| `<bundle id>` | `<n>`、`none` | — | アプリをデスクトップ n に固定する。`none` はどのデスクトップにも属さない |
 
 ```
 switcher = square
@@ -86,7 +86,7 @@ com.apple.Safari = 1
 
 - [Switcher](docs/switcher.md): 3 つの表示、表示までの遅延、画面収録、パスワード管理アプリ。
 - [Menu bar](docs/menubar.md): アイコン、`+k` のパネル、クリック。
-- [Workspaces](docs/workspaces.md): 固定、ウィンドウの呼び寄せ、枠、修飾キーの衝突。
+- [Workspaces](docs/workspaces.md): 固定、どのデスクトップにも属さないアプリ、ウィンドウの呼び寄せ、枠、修飾キーの衝突。
 - [App](docs/app.md): メニューバーのアプリ、メニュー、許可（準備中）。
 
 ## 設計
