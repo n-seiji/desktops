@@ -2,6 +2,7 @@
 #include "appearance.h"
 #include "border_geom.h"
 #include "skylight.h"
+#include <dispatch/dispatch.h>
 #include <dlfcn.h>
 #include <math.h>
 
@@ -162,6 +163,30 @@ static void appearance_changed(CFNotificationCenterRef center __unused, void *ob
     SLSReenableUpdate(cid);
 }
 
+// WindowServer reports 0 for a window that just opened; the real radius arrives within about a second.
+#define RADIUS_RETRY_MS 100
+#define RADIUS_RETRIES 20
+static unsigned radius_gen;
+
+static void recheck_radius(uint32_t wid, unsigned gen, int left) {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, RADIUS_RETRY_MS * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+        if (gen != radius_gen || !shown || last_target != wid) return;
+        CGFloat r = window_radius(wid);
+        if (r == 0) {
+            if (left > 1) recheck_radius(wid, gen, left - 1);
+            return;
+        }
+        radius = r;
+        if (border_too_small(last_outer.size, radius)) {
+            border_hide();
+            return;
+        }
+        SLSDisableUpdate(cid);
+        for (int e = 0; e < EDGE_COUNT; e++) draw_edge(e, last_outer);
+        SLSReenableUpdate(cid);
+    });
+}
+
 void border_show(CGRect frame, uint32_t target_wid) {
     if (!edges[EDGE_COUNT - 1].ctx) return;
     CGRect outer = CGRectInset(frame, -RING_OUTSET, -RING_OUTSET);
@@ -170,7 +195,11 @@ void border_show(CGRect frame, uint32_t target_wid) {
     if (CGGetDisplaysWithRect(frame, 1, &d, &n) == kCGErrorSuccess && n) outer = CGRectIntersection(outer, CGDisplayBounds(d));
     bool same = shown && target_wid == last_target;
     bool resized = !same || !CGSizeEqualToSize(outer.size, last_outer.size);
-    if (!same) radius = window_radius(target_wid);
+    if (!same) {
+        radius = window_radius(target_wid);
+        unsigned gen = ++radius_gen;
+        if (radius == 0) recheck_radius(target_wid, gen, RADIUS_RETRIES);
+    }
     if (border_too_small(outer.size, radius)) {
         border_hide();
         return;
