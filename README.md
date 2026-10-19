@@ -58,6 +58,7 @@ The service writes its log to `~/Library/Logs/just-desktops.log` (earlier versio
 |---|---|
 | `⌥1` `⌥2` `⌥3` `⌥Q` `⌥W` `⌥E` | Switch to Desktop 1 to 6 |
 | `⌥⇧` + the same key | Move the focused window to that desktop |
+| `⌥[` / `⌥]` | Go back / forward through the last 10 focused windows, across desktops |
 | `⌥Tab` / `⌥⇧Tab` | Select the next / previous window. Wraps around |
 | Release `⌥` | Switch to the selected window |
 | `Esc` | Cancel the switcher |
@@ -86,7 +87,7 @@ com.apple.Safari = 1
 
 - [Switcher](docs/switcher.md): the three styles, the delay, Screen Recording, password managers.
 - [Menu bar](docs/menubar.md): glyphs, the `+k` panel, clicking.
-- [Workspaces](docs/workspaces.md): pins, apps on every desktop, pulling windows, the border, modifier conflicts.
+- [Workspaces](docs/workspaces.md): focus history, pins, apps on every desktop, pulling windows, the border, modifier conflicts.
 - [App](docs/app.md): the menu bar app, its menu and permissions (coming soon).
 
 ## Design
