@@ -78,7 +78,7 @@ static void refresh_border(win_t *w) {
     if (!config_border()) return;
     CGPoint p;
     CGSize s;
-    if (!w || w->hidden || w->ws != cur_ws ||
+    if (!w || w->hidden || !wm_here(w) ||
         w->minimized || ax_bool(w->el, CFSTR("AXFullScreen")) ||
         !ax_value(w->el, kAXPositionAttribute, kAXValueTypeCGPoint, &p) ||
         !ax_value(w->el, kAXSizeAttribute, kAXValueTypeCGSize, &s)) {
@@ -111,7 +111,7 @@ static void recheck_after_settle(void) {
 
 void wm_on_focus(void) {
     win_t *w = wm_focused();
-    if (w && w->ws != cur_ws) {
+    if (w && !wm_here(w)) {
         // A parked window took focus (Cmd-Tab, Dock, launch, unhide): pull it here, unless macOS is still
         // settling after a desktop change or it is the one we just parked.
         double t = CFAbsoluteTimeGetCurrent();
@@ -126,7 +126,7 @@ void wm_on_focus(void) {
     }
     if (w) {
         stale = 0;
-        last_focus[cur_ws] = w->wid;
+        if (w->ws != WS_EVERY) last_focus[cur_ws] = w->wid;
     }
     refresh_border(w);
     wm_refresh_menubar(w);
@@ -162,7 +162,7 @@ void wm_switch(int ws) {
 void wm_move_focused(int ws) {
     if (ws < 1 || ws > config_workspaces()) return;
     win_t *w = wm_focused();
-    if (!w || w->ws == ws) return;
+    if (!w || w->ws == ws || w->ws == WS_EVERY) return;
     w->ws = ws;
     last_focus[ws] = w->wid;
     if (ws != cur_ws) {
@@ -176,8 +176,8 @@ void wm_move_focused(int ws) {
 
 void wm_focus_wid(uint32_t wid) {
     win_t *w = wm_find_win(wid);
-    if (!w || w->ws != cur_ws) return;
-    last_focus[cur_ws] = wid;
+    if (!w || !wm_here(w)) return;
+    if (w->ws != WS_EVERY) last_focus[cur_ws] = wid;
     focus(w);
     wm_mark_fresh(wid, CFAbsoluteTimeGetCurrent());
     wm_refresh_ui();

@@ -79,7 +79,7 @@ static bool is_shown(CFArrayRef shown, uint32_t wid) {
 // On this desktop, not minimized or parked, and shown by WindowServer (not a hidden app, another
 // Space, alpha 0 or off screen).
 static bool switchable(win_t *w, CFArrayRef shown) {
-    return w->ws == cur_ws && !w->hidden && !w->minimized && is_shown(shown, w->wid);
+    return wm_here(w) && !w->hidden && !w->minimized && is_shown(shown, w->wid);
 }
 
 // The switchable windows in menu bar order: see order_group. pids and wids need room for nwins
@@ -168,7 +168,7 @@ static int menubar_order(pid_t *pids, uint32_t *wids) {
     CFArrayRef shown = shown_windows();
     for (int i = 0; i < nwins && nv < JD_MENUBAR_WINS; i++) {
         win_t *w = &wins[i];
-        if (w->ws != cur_ws || w->hidden || w->minimized) continue;
+        if (!wm_here(w) || w->hidden || w->minimized) continue;
         if (!shown_grace(is_shown(shown, w->wid), &w->was_listed, now, w->shown_at)) continue;
         vpid[nv] = w->pid;
         vwid[nv++] = w->wid;

@@ -73,8 +73,8 @@ File: `~/.config/just-desktops/config`. See [config.example](config.example).
 | `menubar` | `on` (or `strip`), `icon`, `off` | `off` (app: `on`) | Menu bar item: one glyph per window, or only a small app icon. The app always has an item, so `off` means `icon` there |
 | `keys` | up to 10 digits or letters | `1 2 3 q w e` | The n-th key is Desktop n |
 | `modifier` | `opt`, `cmd`, `ctrl` | `opt` | Base modifier of every hotkey. See [modifier](docs/workspaces.md#modifier) |
-| `no_preview` | bundle ids | none | Apps the square switcher never screenshots. Repeatable |
-| `<bundle id>` | `<n>` | none | Pin an app to Desktop n |
+| `no_preview` | bundle ids | — | Apps the square switcher never screenshots. Repeatable |
+| `<bundle id>` | `<n>`, `none` | — | Pin an app to Desktop n. `none` keeps the app on every desktop |
 
 ```
 switcher = square
@@ -86,7 +86,7 @@ com.apple.Safari = 1
 
 - [Switcher](docs/switcher.md): the three styles, the delay, Screen Recording, password managers.
 - [Menu bar](docs/menubar.md): glyphs, the `+k` panel, clicking.
-- [Workspaces](docs/workspaces.md): pins, pulling windows, the border, modifier conflicts.
+- [Workspaces](docs/workspaces.md): pins, apps on every desktop, pulling windows, the border, modifier conflicts.
 - [App](docs/app.md): the menu bar app, its menu and permissions (coming soon).
 
 ## Design
