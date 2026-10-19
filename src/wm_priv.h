@@ -26,6 +26,9 @@ extern win_t *wins; // in tracking order: cycling relies on it
 extern int nwins;
 extern int cur_ws;  // the current desktop
 
+#define WS_EVERY 0 // win_t.ws of a window on every desktop (assign CONFIG_EVERY)
+static inline bool wm_here(const win_t *w) { return w->ws == cur_ws || w->ws == WS_EVERY; }
+
 // wm.c: tracked apps and windows
 app_t *wm_find_app(pid_t pid);
 win_t *wm_find_win(uint32_t wid);

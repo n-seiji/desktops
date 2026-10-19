@@ -65,7 +65,7 @@ static win_t *track(app_t *a, AXUIElementRef el) {
         capwins = cap;
     }
     w = &wins[nwins++];
-    *w = (win_t){(AXUIElementRef)CFRetain(el), a->pid, wid, a->assign ? a->assign : cur_ws, {0, 0}, false, 0, false,
+    *w = (win_t){(AXUIElementRef)CFRetain(el), a->pid, wid, a->assign == CONFIG_EVERY ? WS_EVERY : a->assign ? a->assign : cur_ws, {0, 0}, false, 0, false,
                  ax_bool(el, kAXMinimizedAttribute)};
 
     // A window left in the corner by a previous crash: bring it back.
@@ -80,7 +80,7 @@ static win_t *track(app_t *a, AXUIElementRef el) {
     AXObserverAddNotification(a->obs, el, kAXWindowMiniaturizedNotification, ctx);
     AXObserverAddNotification(a->obs, el, kAXWindowDeminiaturizedNotification, ctx);
 
-    if (w->ws != cur_ws) wm_hide(w);
+    if (!wm_here(w)) wm_hide(w);
     return w;
 }
 
@@ -156,7 +156,7 @@ static void add_app(pid_t pid, int assign, bool nopreview, int attempt) {
 }
 
 void wm_add_app(pid_t pid, const char *bundle_id) {
-    if (!config_unmanaged(bundle_id)) add_app(pid, config_assign(bundle_id), config_no_preview(bundle_id), 0);
+    add_app(pid, config_assign(bundle_id), config_no_preview(bundle_id), 0);
     if (menubar_ready()) wm_refresh_menubar(wm_focused());
 }
 

@@ -13,10 +13,9 @@
 //   menubar = on|icon|off (menu bar item: on/strip = windows and the desktop key, icon = app glyph only; the app treats off as icon)
 //   keys = 1 2 3 q w e    (digits and letters; the n-th key is Desktop n)
 //   no_preview = <bundle id> [<bundle id> ...]   (apps the square switcher never screenshots; repeatable)
-//   <bundle id> = <desktop number> | none   (none: the app belongs to no desktop; its windows are never parked)
+//   <bundle id> = <desktop number> | none   (none: the app is on every desktop; its windows are never parked)
 
 typedef struct { char id[128]; int ws; } assign_t;
-#define JD_WS_NONE (-1) // assign_t.ws of `= none`
 
 static assign_t *assigns;
 static int nassigns;
@@ -152,7 +151,7 @@ void config_load(void) {
             continue;
         }
         bool none = !strncasecmp(v, "none", 4) && (!v[4] || v[4] == '#' || isspace((unsigned char)v[4]));
-        int ws = none ? JD_WS_NONE : atoi(v);
+        int ws = none ? CONFIG_EVERY : atoi(v);
         if (!none && (ws < 1 || ws > JD_MAX_WS)) continue;
         if (strlen(k) >= sizeof assigns->id) {
             fprintf(stderr, "just-desktops: bundle id longer than %zu bytes ignored: %.20s...\n", sizeof assigns->id - 1, k);
@@ -172,15 +171,12 @@ void config_load(void) {
 int config_assign(const char *bundle_id) {
     if (!bundle_id) return 0;
     for (int i = 0; i < nassigns; i++)
-        if (!strcmp(assigns[i].id, bundle_id)) return assigns[i].ws >= 1 && assigns[i].ws <= nkeys ? assigns[i].ws : 0;
+        if (!strcmp(assigns[i].id, bundle_id)) {
+            int ws = assigns[i].ws;
+            if (ws == CONFIG_EVERY) return CONFIG_EVERY;
+            return ws >= 1 && ws <= nkeys ? ws : 0;
+        }
     return 0;
-}
-
-bool config_unmanaged(const char *bundle_id) {
-    if (!bundle_id) return false;
-    for (int i = 0; i < nassigns; i++)
-        if (!strcmp(assigns[i].id, bundle_id)) return assigns[i].ws == JD_WS_NONE;
-    return false;
 }
 
 bool config_no_preview(const char *bundle_id) {

@@ -56,14 +56,10 @@ static void check_key_char(int i, char want) {
     }
 }
 
-static void check_pin(const char *id, int want_ws, bool want_unmanaged) {
+static void check_pin(const char *id, int want_ws) {
     int ws = config_assign(id);
     if (ws != want_ws) {
         printf("FAIL config_assign(\"%s\") = %d; want %d\n", id, ws, want_ws);
-        failed++;
-    }
-    if (config_unmanaged(id) != want_unmanaged) {
-        printf("FAIL config_unmanaged(\"%s\") = %d; want %d\n", id, !want_unmanaged, want_unmanaged);
         failed++;
     }
 }
@@ -136,19 +132,19 @@ int main(void) {
         failed++;
     }
 
-    check_pin("com.example.floating", 0, true);
-    check_pin("com.example.caps", 0, true);
-    check_pin("com.example.tight", 0, true);
-    check_pin("com.example.note", 0, true);
-    check_pin("com.example.glued", 0, true);
-    check_pin("com.example.pinned", 2, false);
-    check_pin("com.example.bogus", 0, false);
-    check_pin("com.example.pinfirst", 2, false);
-    check_pin("com.example.nonefirst", 0, true);
-    check_pin("com.example.neg", 0, false);
-    check_pin("com.example.prefix", 0, false);
-    check_pin("com.example.unknown", 0, false);
-    check_pin(NULL, 0, false);
+    check_pin("com.example.floating", CONFIG_EVERY);
+    check_pin("com.example.caps", CONFIG_EVERY);
+    check_pin("com.example.tight", CONFIG_EVERY);
+    check_pin("com.example.note", CONFIG_EVERY);
+    check_pin("com.example.glued", CONFIG_EVERY);
+    check_pin("com.example.pinned", 2);
+    check_pin("com.example.bogus", 0);
+    check_pin("com.example.pinfirst", 2);
+    check_pin("com.example.nonefirst", CONFIG_EVERY);
+    check_pin("com.example.neg", 0);
+    check_pin("com.example.prefix", 0);
+    check_pin("com.example.unknown", 0);
+    check_pin(NULL, 0);
 
     check_key_char(0, '1');
     check_key_char(2, '3');
