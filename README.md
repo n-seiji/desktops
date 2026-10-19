@@ -9,17 +9,40 @@
 
 Keyboard-driven desktops for macOS, in one small background process (about 8MB).
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/overview-dark.svg">
-    <img src="assets/overview-light.svg" width="720" alt="A schematic macOS screen: desktop keys below it, the window switcher in the middle, a ring around the focused window and the menu bar item at the top right">
-  </picture>
-</p>
+<table>
+  <tr>
+    <td align="center" valign="top" width="20%">
+      <img src="assets/tile-windows.svg" width="160" alt="Three windows stay in place while the focus moves from one to the next"><br>
+      <b>Switch windows</b><br>
+      <sub>⌥Tab moves through the windows on this desktop.</sub>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <img src="assets/tile-desktops.svg" width="160" alt="A screen whose windows change as ⌥1, ⌥2 and ⌥3 are pressed"><br>
+      <b>Switch desktops</b><br>
+      <sub>⌥1, ⌥2, ⌥3. Up to 10 desktops.</sub>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <img src="assets/tile-none.svg" width="160" alt="One window stays in place while the desktop behind it changes"><br>
+      <b>Float above desktops</b><br>
+      <sub>Choose apps to keep on every desktop, such as a terminal or a password manager.</sub>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <img src="assets/tile-border.svg" width="160" alt="A ring around the focused window"><br>
+      <b>See where you type</b><br>
+      <sub>A thin border around the focused window.</sub>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <img src="assets/tile-noresize.svg" width="160" alt="Windows keep their size"><br>
+      <b>No resizing</b><br>
+      <sub>Use Raycast or another tool for size and layout.</sub>
+    </td>
+  </tr>
+</table>
 
-1. **Desktops.** Press `⌥1`, `⌥2`, `⌥3`... to switch between up to 10 desktops. Add Shift to take the focused window with you. macOS Spaces and SIP are left alone.
-2. **Window switcher.** Hold `⌥` and press Tab to pick a window on this desktop. Shown as a list, a big preview, or not at all.
-3. **Focus ring.** A thin ring around the window you are typing in.
-4. **Menu bar.** Optional. One icon per window on this desktop, and the desktop number.
+- **Desktops.** Press `⌥1`, `⌥2`, `⌥3`... to switch between up to 10 desktops. Add Shift to take the focused window with you. macOS Spaces and SIP are left alone.
+- **Window switcher.** Hold `⌥` and press Tab to pick a window on this desktop. Shown as a list, a big preview, or not at all.
+- **Focus ring.** A thin ring around the window you are typing in.
+- **Menu bar.** Optional. One icon per window on this desktop, and the desktop number.
 
 ## Install
 

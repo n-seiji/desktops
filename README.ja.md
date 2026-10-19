@@ -9,17 +9,40 @@
 
 キーボードで切り替える、macOS のデスクトップ。小さな常駐プロセス 1 つ（約 8MB）で動きます。
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/overview-dark.svg">
-    <img src="assets/overview-light.svg" width="720" alt="macOS の画面の模式図。下にデスクトップを切り替えるキー、中央にウィンドウスイッチャー、フォーカス中のウィンドウを囲む枠、右上にメニューバーの項目">
-  </picture>
-</p>
+<table>
+  <tr>
+    <td align="center" valign="top" width="20%">
+      <img src="assets/tile-windows.svg" width="160" alt="3 枚のウィンドウは動かず、フォーカスだけが次のウィンドウへ移る"><br>
+      <b>ウィンドウの切り替え</b><br>
+      <sub>⌥Tab で、このデスクトップのウィンドウを順に選びます。</sub>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <img src="assets/tile-desktops.svg" width="160" alt="⌥1、⌥2、⌥3 を押すたびに、画面のウィンドウが入れ替わる"><br>
+      <b>デスクトップの切り替え</b><br>
+      <sub>⌥1、⌥2、⌥3。最大 10 個。</sub>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <img src="assets/tile-none.svg" width="160" alt="奥のデスクトップが替わっても、1 枚のウィンドウが同じ場所に残る"><br>
+      <b>すべてのデスクトップに出す</b><br>
+      <sub>ターミナルやパスワード管理アプリなど、選んだアプリをどのデスクトップにも出します。</sub>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <img src="assets/tile-border.svg" width="160" alt="フォーカス中のウィンドウを囲む枠"><br>
+      <b>入力先が分かる</b><br>
+      <sub>フォーカス中のウィンドウを、細い枠で囲みます。</sub>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <img src="assets/tile-noresize.svg" width="160" alt="ウィンドウの大きさは変わらない"><br>
+      <b>サイズは変えない</b><br>
+      <sub>大きさや配置は、Raycast などに任せます。</sub>
+    </td>
+  </tr>
+</table>
 
-1. **デスクトップ。** `⌥1`、`⌥2`、`⌥3`… で、最大 10 個のデスクトップを切り替えます。Shift を足すと、今のウィンドウを連れて移動します。macOS の Spaces と SIP には触りません。
-2. **ウィンドウスイッチャー。** `⌥` を押したまま Tab を押して、このデスクトップのウィンドウを選びます。表示は、リスト、大きなプレビュー、表示なし、から選べます。
-3. **フォーカスの枠。** 入力中のウィンドウを、細い枠で囲みます。
-4. **メニューバー。** 使うかどうかは選べます。このデスクトップのウィンドウを 1 つずつアイコンで並べ、デスクトップの番号を出します。
+- **デスクトップ。** `⌥1`、`⌥2`、`⌥3`… で、最大 10 個のデスクトップを切り替えます。Shift を足すと、今のウィンドウを連れて移動します。macOS の Spaces と SIP には触りません。
+- **ウィンドウスイッチャー。** `⌥` を押したまま Tab を押して、このデスクトップのウィンドウを選びます。表示は、リスト、大きなプレビュー、表示なし、から選べます。
+- **フォーカスの枠。** 入力中のウィンドウを、細い枠で囲みます。
+- **メニューバー。** 使うかどうかは選べます。このデスクトップのウィンドウを 1 つずつアイコンで並べ、デスクトップの番号を出します。
 
 ## インストール
 

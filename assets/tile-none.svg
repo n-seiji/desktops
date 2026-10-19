@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="180" viewBox="0 0 480 360" fill="none" role="img" aria-label="Apps on every desktop">
+  <style>
+    .f { opacity: 0; animation: show 3.2s infinite; }
+    @keyframes show { 0% { opacity: 0 } 4% { opacity: 1 } 50.00% { opacity: 1 } 54.00% { opacity: 0 } 100% { opacity: 0 } }
+    .press { opacity: 0; animation: press 1.6s infinite; }
+    @keyframes press { 0% { opacity: 0.9 } 18% { opacity: 0 } 100% { opacity: 0 } }
+    @media (prefers-reduced-motion: reduce) { .f, .press { animation: none } .f0 { opacity: 1 } }
+    
+    .f0 { animation-delay: -3.20s; }
+    .f1 { animation-delay: -1.60s; }
+  </style>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1f1f23"/>
+      <stop offset="1" stop-color="#121214"/>
+    </linearGradient>
+  </defs>
+  <rect width="480" height="360" rx="44" fill="url(#bg)"/>
+  <rect x="0.5" y="0.5" width="479" height="359" rx="43.5" stroke="#ffffff" stroke-opacity="0.08"/>
+  <g class="f f0">
+    <rect x="56" y="34" width="368" height="214" rx="18" fill="#151517" stroke="#ffffff" stroke-opacity="0.25" stroke-width="1.5"/>
+    <path d="M57 58 H423" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1.5"/>
+    <rect x="78" y="72" width="168" height="120" rx="10" fill="#3a3a40"/>
+    <rect x="220" y="104" width="182" height="124" rx="10" fill="#3a3a40"/>
+    <rect x="158" y="270" width="72" height="44" rx="12" fill="#f5f5f7"/>
+    <text x="194.0" y="299.5" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', Helvetica, Arial, sans-serif" font-size="22" font-weight="500" fill="#121214">⌥1</text>
+    <rect x="250.75" y="270.75" width="70.5" height="42.5" rx="11.5" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1.5"/>
+    <text x="286.0" y="299.5" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', Helvetica, Arial, sans-serif" font-size="22" font-weight="500" fill="#f5f5f7">⌥2</text>
+  </g>
+  <g class="f f1">
+    <rect x="56" y="34" width="368" height="214" rx="18" fill="#151517" stroke="#ffffff" stroke-opacity="0.25" stroke-width="1.5"/>
+    <path d="M57 58 H423" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1.5"/>
+    <rect x="96" y="70" width="288" height="162" rx="10" fill="#3a3a40"/>
+    <rect x="158.75" y="270.75" width="70.5" height="42.5" rx="11.5" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1.5"/>
+    <text x="194.0" y="299.5" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', Helvetica, Arial, sans-serif" font-size="22" font-weight="500" fill="#f5f5f7">⌥1</text>
+    <rect x="250" y="270" width="72" height="44" rx="12" fill="#f5f5f7"/>
+    <text x="286.0" y="299.5" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', Helvetica, Arial, sans-serif" font-size="22" font-weight="500" fill="#121214">⌥2</text>
+  </g>
+  <rect x="86" y="106" width="136" height="104" rx="10" fill="#f5f5f7"/>
+  <rect x="78" y="98" width="152" height="120" rx="18" stroke="#ffffff" stroke-opacity="0.9" stroke-width="3.5"/>
+</svg>
