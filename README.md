@@ -49,6 +49,18 @@ Keyboard-driven desktops for macOS, in one small background process (about 8MB).
 
 ## Install
 
+### App
+
+```sh
+brew install --cask n-seiji/tap/just-desktops
+```
+
+Or download `just-desktops-<version>.app.zip` from [Releases](https://github.com/n-seiji/just-desktops/releases/latest) and move `just-desktops.app` to Applications. It is signed with a Developer ID and notarized by Apple.
+
+Open it and allow Accessibility when macOS asks. It lives in the menu bar, with no Dock icon. Right-click its item for settings, including Launch at Login. More in [docs/app.md](docs/app.md).
+
+### Command line
+
 ```sh
 mise use -g github:n-seiji/just-desktops
 just-desktops
@@ -67,7 +79,7 @@ Upgrading through mise changes the binary path. Run `mise run service` again and
 
 The service writes its log to `~/Library/Logs/just-desktops.log` (earlier versions used `/tmp/just-desktops.log`; `mise run service` rewrites the plist, and the old file can be deleted).
 
-**App: coming soon.** A signed and notarized `just-desktops.app` with a Homebrew cask, started and set up from the menu bar with no terminal. See [docs/app.md](docs/app.md).
+Use either the app or the command line service, not both: the second one exits at once.
 
 ## Quick start
 
@@ -114,7 +126,7 @@ com.apple.Safari = 1
 - [Switcher](docs/switcher.md): the three styles, the delay, Screen Recording, password managers.
 - [Menu bar](docs/menubar.md): glyphs, the `+k` panel, clicking.
 - [Workspaces](docs/workspaces.md): focus history, pins, apps on every desktop, pulling windows, the border, modifier conflicts.
-- [App](docs/app.md): the menu bar app, its menu and permissions (coming soon).
+- [App](docs/app.md): the menu bar app, its menu and permissions.
 
 ## Design
 

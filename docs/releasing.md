@@ -60,7 +60,14 @@ gh api repos/n-seiji/just-desktops/environments/release/deployment-branch-polici
 2. `check` finds no release or tag for `vX.Y.Z` and starts `build`. A `common.h` change that leaves `JD_VERSION` alone runs `check` only, and it skips the rest. If the current version has no release yet, any `common.h` change starts one; the approval gate makes that harmless.
 3. `build` signs, notarizes and uploads a draft release. Review the draft under Releases: assets and notes. Optionally download it and run the checks below.
 4. In the Actions run, open "Review deployments" and approve `release`. `publish` verifies the checksums, attests the files and publishes the release.
-5. Update the cask: `scripts/bump-cask.sh X.Y.Z`. Do this after approval, since it verifies the attestation.
+5. Update the cask, after approval (it verifies the attestation). The cask lives in [n-seiji/homebrew-tap](https://github.com/n-seiji/homebrew-tap); `packaging/homebrew/just-desktops.rb` is its template here.
+
+   ```sh
+   scripts/bump-cask.sh X.Y.Z                                    # the template in this repo
+   scripts/bump-cask.sh X.Y.Z ../homebrew-tap/Casks/just-desktops.rb   # a clone of the tap
+   ```
+
+   Commit and push the tap, then `brew audit --cask --online n-seiji/tap/just-desktops`.
 
 The first release of a version that is already set (no release, draft or tag yet): Actions > release > Run workflow, on `main`. Dispatch from any other ref fails in `check`.
 
