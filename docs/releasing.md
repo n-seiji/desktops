@@ -1,8 +1,8 @@
 # Releasing
 
-A `v*` tag runs `.github/workflows/release.yml`. It builds the CLI tarballs and the app zip, attests them and publishes a GitHub release.
+A `v*` tag on a commit in `main` runs `.github/workflows/release.yml`. The `build` job builds the CLI tarballs and the app zip and stores them in a draft release. After you approve the `release` environment, the `publish` job verifies the checksums, attests the files and publishes the release.
 
-Without the secrets below the artifacts are ad-hoc signed, as before. With them the workflow signs with a Developer ID Application certificate, notarizes, staples the app and re-zips it, then computes the checksums and attestations from the final files.
+Without the secrets below the artifacts are ad-hoc signed, as before. With them the workflow signs with a Developer ID Application certificate, notarizes, staples the app and re-zips it, then computes the checksums from the final files. The attestations are made from those same files after approval.
 
 ## One-time setup
 
@@ -39,11 +39,42 @@ Delete `cert.p12` and the `.p8` afterwards, or store them in a password manager.
 
 Setting only some of a group fails the release before building. Notarization without the certificate secrets fails as well.
 
+### 4. Release environment
+
+```sh
+scripts/setup-release-env.sh
+```
+
+Run it once. It creates the `release` environment with you as the required reviewer and allows deployments from `v*` tags only. It is safe to re-run. Set `REVIEWER` or pass a login to change the reviewer, and `REPO` to change the repository.
+
+Without it GitHub creates the environment on first use with no reviewers, and `publish` runs unapproved. Check it:
+
+```sh
+gh api repos/n-seiji/just-desktops/environments/release -q '.protection_rules'
+gh api repos/n-seiji/just-desktops/environments/release/deployment-branch-policies -q '.branch_policies'
+```
+
 ## Cutting a release
 
-1. Set `JD_VERSION` in `src/common.h` to the new version and commit it.
-2. `git tag vX.Y.Z && git push origin vX.Y.Z`. The workflow fails if the tag and `JD_VERSION` differ.
-3. Update the cask: `scripts/bump-cask.sh X.Y.Z`.
+1. Set `JD_VERSION` in `src/common.h` to the new version, merge it to `main`.
+2. Tag the merged commit: `git tag vX.Y.Z && git push origin vX.Y.Z`. `build` fails if the tag and `JD_VERSION` differ, or if the tagged commit is not on `main`.
+3. `build` signs, notarizes and uploads a draft release. Review the draft under Releases: assets and notes. Optionally download it and run the checks below.
+4. In the Actions run, open "Review deployments" and approve `release`. `publish` verifies the checksums, attests the files and publishes the release.
+5. Update the cask: `scripts/bump-cask.sh X.Y.Z`. Do this after approval, since it verifies the attestation.
+
+### What is public before approval
+
+Public: the tag, and the Actions logs. The workflow masks the signer's name and Team ID in them; they become public with the release, inside the signed app.
+Not public: the binaries, the attestation and the release page. The draft is visible only to people with write access.
+
+### Reject, re-run, expiry
+
+- Reject: reject the run in "Review deployments" (or cancel it), then `gh release delete vX.Y.Z --yes --cleanup-tag` to remove the draft and the tag. A run left waiting holds the tag's concurrency group, so a new run for the same tag would queue behind it.
+- "Re-run all jobs" fails in `build` because the draft already exists. Re-run only the failed `publish` job, or delete the draft first.
+- A run waiting for approval expires after 30 days. The draft stays.
+- A run uses the `release.yml` from the tag. If `publish` is broken, delete the draft and tag and tag again after the fix.
+- `publish` uses `GITHUB_TOKEN`, so the release does not trigger workflows on `release: published`.
+- The attestation is made on the ubuntu runner after approval, not on the macOS runner that built the files. `publish` first checks the draft's files against the checksums `build` passed along, so it attests exactly what `build` made.
 
 ## Checking the result
 
