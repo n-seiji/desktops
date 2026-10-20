@@ -13,7 +13,10 @@ enum { EDGE_TOP, EDGE_BOTTOM, EDGE_LEFT, EDGE_RIGHT, EDGE_COUNT };
 
 // Edge window e around outer (the ring's outer rect), snapped out to whole points: the ring itself
 // sits at fractional offsets inside, and a window at a half-point origin leaves an unpainted row.
-CGRect border_edge_rect(int e, CGRect outer, CGFloat radius);
+// The sides run exactly from the top's bottom to the bottom's top, so the semi-transparent ring never
+// overlaps itself. The result is cut to clip (CGRectInfinite for none) and is empty (CGRectIsEmpty)
+// when nothing of the edge is inside; the ring itself is still laid out in outer.
+CGRect border_edge_rect(int e, CGRect outer, CGFloat radius, CGRect clip);
 // Corner radius of the ring's centre line: the window's radius plus the gap and half the width,
 // at most half the shorter side of the centre line's rect.
 CGFloat border_ring_radius(CGFloat radius, CGSize outer);
