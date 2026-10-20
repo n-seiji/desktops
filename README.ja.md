@@ -49,6 +49,18 @@
 
 ## インストール
 
+### アプリ
+
+```sh
+brew install --cask n-seiji/tap/just-desktops
+```
+
+または、[Releases](https://github.com/n-seiji/just-desktops/releases/latest) から `just-desktops-<バージョン>.app.zip` をダウンロードして、`just-desktops.app` をアプリケーションフォルダに移します。Developer ID で署名し、Apple の公証を通してあります。
+
+開くと、macOS がアクセシビリティの許可を求めるので、許可してください。Dock には出ず、メニューバーに常駐します。メニューバーの項目を右クリックすると、ログイン時の起動（Launch at Login）などの設定を選べます。詳しくは [docs/app.md](docs/app.md)（英語）を見てください。
+
+### コマンドライン
+
 ```sh
 mise use -g github:n-seiji/just-desktops
 just-desktops
@@ -67,7 +79,7 @@ mise でアップグレードすると、バイナリのパスが変わります
 
 サービスのログは `~/Library/Logs/just-desktops.log` に出ます（以前の版は `/tmp/just-desktops.log` でした。`mise run service` で plist が書き直されるので、古いファイルは消してかまいません）。
 
-**アプリ版は準備中です。** Developer ID で署名し、Apple の公証を通した `just-desktops.app` と、Homebrew の cask を用意しています。起動も設定もメニューバーからでき、ターミナルは要りません。詳しくは [docs/app.md](docs/app.md)（英語）を見てください。
+アプリとコマンドラインのサービスは、どちらか一方だけを使ってください。2 つ目に起動したほうは、すぐに終了します。
 
 ## 使い始める
 
@@ -114,7 +126,7 @@ com.apple.Safari = 1
 - [Switcher](docs/switcher.md): 3 つの表示、表示までの遅延、画面収録、パスワード管理アプリ。
 - [Menu bar](docs/menubar.md): アイコン、`+k` のパネル、クリック。
 - [Workspaces](docs/workspaces.md): フォーカス履歴、固定、すべてのデスクトップに表示するアプリ、ウィンドウの呼び寄せ、枠、修飾キーの衝突。
-- [App](docs/app.md): メニューバーのアプリ、メニュー、許可（準備中）。
+- [App](docs/app.md): メニューバーのアプリ、メニュー、許可。
 
 ## 設計
 
