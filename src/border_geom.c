@@ -8,16 +8,22 @@ static CGFloat edge_thickness(CGFloat radius) {
     return radius + RING_OUTSET;
 }
 
-CGRect border_edge_rect(int e, CGRect o, CGFloat radius) {
+CGRect border_edge_rect(int e, CGRect o, CGFloat radius, CGRect clip) {
     CGFloat t = edge_thickness(radius), s = SIDE_THICKNESS;
+    CGRect top = CGRectIntegral(CGRectMake(o.origin.x, o.origin.y, o.size.width, t));
+    CGRect bottom = CGRectIntegral(CGRectMake(o.origin.x, o.origin.y + o.size.height - t, o.size.width, t));
     CGRect r;
     switch (e) {
-    case EDGE_TOP: r = CGRectMake(o.origin.x, o.origin.y, o.size.width, t); break;
-    case EDGE_BOTTOM: r = CGRectMake(o.origin.x, o.origin.y + o.size.height - t, o.size.width, t); break;
-    case EDGE_LEFT: r = CGRectMake(o.origin.x, o.origin.y + t, s, o.size.height - 2 * t); break;
-    default: r = CGRectMake(o.origin.x + o.size.width - s, o.origin.y + t, s, o.size.height - 2 * t);
+    case EDGE_TOP: r = top; break;
+    case EDGE_BOTTOM: r = bottom; break;
+    case EDGE_LEFT: r = CGRectIntegral(CGRectMake(o.origin.x, 0, s, 1)); break;
+    default: r = CGRectIntegral(CGRectMake(o.origin.x + o.size.width - s, 0, s, 1));
     }
-    return CGRectIntegral(r);
+    if (e >= EDGE_LEFT) { // the sides run exactly between the snapped top and bottom, so they never overlap them
+        r.origin.y = CGRectGetMaxY(top);
+        r.size.height = fmax(0, CGRectGetMinY(bottom) - r.origin.y);
+    }
+    return CGRectIntersection(r, clip);
 }
 
 CGFloat border_ring_radius(CGFloat radius, CGSize outer) {

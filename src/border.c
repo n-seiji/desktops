@@ -32,7 +32,8 @@ static struct {
 static int cid;
 static bool shown;
 static uint32_t last_target;
-static CGRect last_outer;
+static CGRect last_outer; // the ring's rect, not clipped to the display
+static CGRect last_clip;
 static const palette_t *pal = &DARK;
 static CGFloat radius = DEFAULT_RADIUS; // the followed window's corner radius
 
@@ -105,8 +106,10 @@ void border_init(void) {
     }
 }
 
-static void draw_edge(int e, CGRect outer) {
-    CGRect er = border_edge_rect(e, outer, radius);
+static void draw_edge(int e, CGRect outer, CGRect clip) {
+    CGRect er = border_edge_rect(e, outer, radius, clip);
+    bool off_display = CGRectIsEmpty(er);
+    if (off_display) er = (CGRect){outer.origin, {1, 1}}; // a cleared 1x1 keeps the window in the ordering
     CGRect local = {{0, 0}, er.size};
     CFTypeRef region = NULL;
     CGSNewRegionWithRect(&local, &region);
@@ -117,6 +120,10 @@ static void draw_edge(int e, CGRect outer) {
 
     CGContextRef ctx = edges[e].ctx;
     CGContextClearRect(ctx, local);
+    if (off_display) {
+        CGContextFlush(ctx);
+        return;
+    }
     CGContextSaveGState(ctx);
     CGContextTranslateCTM(ctx, 0, er.size.height); // SkyLight contexts are y-up, frames are y-down
     CGContextScaleCTM(ctx, 1, -1);
@@ -159,7 +166,7 @@ static void appearance_changed(CFNotificationCenterRef center __unused, void *ob
     pal = appearance_dark() ? &DARK : &LIGHT;
     if (!shown) return;
     SLSDisableUpdate(cid);
-    for (int e = 0; e < EDGE_COUNT; e++) draw_edge(e, last_outer);
+    for (int e = 0; e < EDGE_COUNT; e++) draw_edge(e, last_outer, last_clip);
     SLSReenableUpdate(cid);
 }
 
@@ -182,7 +189,7 @@ static void recheck_radius(uint32_t wid, unsigned gen, int left) {
             return;
         }
         SLSDisableUpdate(cid);
-        for (int e = 0; e < EDGE_COUNT; e++) draw_edge(e, last_outer);
+        for (int e = 0; e < EDGE_COUNT; e++) draw_edge(e, last_outer, last_clip);
         SLSReenableUpdate(cid);
     });
 }
@@ -190,11 +197,18 @@ static void recheck_radius(uint32_t wid, unsigned gen, int left) {
 void border_show(CGRect frame, uint32_t target_wid) {
     if (!edges[EDGE_COUNT - 1].ctx) return;
     CGRect outer = CGRectInset(frame, -RING_OUTSET, -RING_OUTSET);
+    CGRect clip = CGRectInfinite; // only the edge windows are cut to the display; the ring is laid out in full
     CGDirectDisplayID d;
     uint32_t n = 0;
-    if (CGGetDisplaysWithRect(frame, 1, &d, &n) == kCGErrorSuccess && n) outer = CGRectIntersection(outer, CGDisplayBounds(d));
+    if (CGGetDisplaysWithRect(frame, 1, &d, &n) == kCGErrorSuccess && n) clip = CGDisplayBounds(d);
     bool same = shown && target_wid == last_target;
     bool resized = !same || !CGSizeEqualToSize(outer.size, last_outer.size);
+    for (int e = 0; e < EDGE_COUNT && !resized; e++) {
+        CGRect a = border_edge_rect(e, outer, radius, clip), b = border_edge_rect(e, last_outer, radius, last_clip);
+        // A clipped edge can keep its size while the ring moves inside it, so its offset counts too.
+        resized = !CGSizeEqualToSize(a.size, b.size) || a.origin.x - outer.origin.x != b.origin.x - last_outer.origin.x ||
+                  a.origin.y - outer.origin.y != b.origin.y - last_outer.origin.y;
+    }
     if (!same) {
         radius = window_radius(target_wid);
         unsigned gen = ++radius_gen;
@@ -205,16 +219,16 @@ void border_show(CGRect frame, uint32_t target_wid) {
         return;
     }
 
-    if (same && CGRectEqualToRect(outer, last_outer)) return;
+    if (same && CGRectEqualToRect(outer, last_outer) && CGRectEqualToRect(clip, last_clip)) return;
 
     SLSDisableUpdate(cid);
     if (!resized) { // dragged: only the position changed
         for (int e = 0; e < EDGE_COUNT; e++) {
-            CGPoint o = border_edge_rect(e, outer, radius).origin;
-            SLSMoveWindow(cid, edges[e].wid, &o);
+            CGRect er = border_edge_rect(e, outer, radius, clip);
+            if (!CGRectIsEmpty(er)) SLSMoveWindow(cid, edges[e].wid, &er.origin);
         }
     } else {
-        for (int e = 0; e < EDGE_COUNT; e++) draw_edge(e, outer);
+        for (int e = 0; e < EDGE_COUNT; e++) draw_edge(e, outer, clip);
     }
     if (!same) {
         SLSRequestNotificationsForWindows(cid, &target_wid, 1); // move / resize events for this window only
@@ -229,6 +243,7 @@ void border_show(CGRect frame, uint32_t target_wid) {
     shown = true;
     last_target = target_wid;
     last_outer = outer;
+    last_clip = clip;
 }
 
 void border_hide(void) {
