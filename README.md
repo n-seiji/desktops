@@ -26,25 +26,26 @@ Keyboard-driven desktops for macOS, in one small background process (about 8MB).
       <b>Float above desktops</b><br>
       <sub>Choose apps to keep on every desktop, such as a terminal or a password manager.</sub>
     </td>
-  </tr>
-  <tr>
-    <td align="center" valign="top" width="33%">
-      <img src="assets/tile-border.svg" width="160" alt="A ring around the focused window"><br>
-      <b>See where you type</b><br>
-      <sub>A thin border around the focused window.</sub>
-    </td>
-    <td align="center" valign="top" width="33%">
-      <img src="assets/tile-noresize.svg" width="160" alt="Windows keep their size"><br>
-      <b>No resizing</b><br>
-      <sub>Use Raycast or another tool for size and layout.</sub>
-    </td>
-  </tr>
 </table>
 
 - **Desktops.** Press `⌥1`, `⌥2`, `⌥3`... to switch between up to 10 desktops. Add Shift to take the focused window with you. macOS Spaces and SIP are left alone.
 - **Window switcher.** Hold `⌥` and press Tab to pick a window on this desktop. Shown as a list, a big preview, or not at all.
-- **Focus ring.** A thin ring around the window you are typing in.
 - **Menu bar.** Optional. One icon per window on this desktop, and the desktop number.
+
+<img src="assets/tile-border.svg" width="96" align="right" alt="A ring around the focused window">
+
+**Also: a focus ring.** A thin ring around the window you are typing in, so you can see where your keys go. It can be turned off.
+
+<br clear="right">
+
+## What it doesn't do
+
+<img src="assets/tile-noresize.svg" width="96" align="right" alt="Windows keep their size">
+
+- **No resizing, tiling or layouts.** Windows keep their size and position. Use Raycast or another tool for that, or [AeroSpace](https://github.com/nikitabobko/AeroSpace) for tiling.
+- **No colors or styles for the border.** For that, use [JankyBorders](https://github.com/FelixKratz/JankyBorders).
+
+<br clear="right">
 
 ## Install
 
@@ -122,7 +123,7 @@ com.apple.Safari = 1
 - **Border through SkyLight**, like JankyBorders, so no NSWindow is created.
 - **Hotkeys through a CGEventTap** on the main run loop. No extra threads.
 
-It mixes two tools: [AeroSpace](https://github.com/nikitabobko/AeroSpace) (windows on inactive workspaces are parked in a corner) and [JankyBorders](https://github.com/FelixKratz/JankyBorders) (the border). For tiling, layouts or colors, use those.
+It mixes two tools: [AeroSpace](https://github.com/nikitabobko/AeroSpace) (windows on inactive workspaces are parked in a corner) and [JankyBorders](https://github.com/FelixKratz/JankyBorders) (the border).
 
 ## Memory
 

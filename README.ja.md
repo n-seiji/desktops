@@ -26,25 +26,26 @@
       <b>すべてのデスクトップに出す</b><br>
       <sub>ターミナルやパスワード管理アプリなど、選んだアプリをどのデスクトップにも出します。</sub>
     </td>
-  </tr>
-  <tr>
-    <td align="center" valign="top" width="33%">
-      <img src="assets/tile-border.svg" width="160" alt="フォーカス中のウィンドウを囲む枠"><br>
-      <b>入力先が分かる</b><br>
-      <sub>フォーカス中のウィンドウを、細い枠で囲みます。</sub>
-    </td>
-    <td align="center" valign="top" width="33%">
-      <img src="assets/tile-noresize.svg" width="160" alt="ウィンドウの大きさは変わらない"><br>
-      <b>サイズは変えない</b><br>
-      <sub>大きさや配置は、Raycast などに任せます。</sub>
-    </td>
-  </tr>
 </table>
 
 - **デスクトップ。** `⌥1`、`⌥2`、`⌥3`… で、最大 10 個のデスクトップを切り替えます。Shift を足すと、今のウィンドウを連れて移動します。macOS の Spaces と SIP には触りません。
 - **ウィンドウスイッチャー。** `⌥` を押したまま Tab を押して、このデスクトップのウィンドウを選びます。表示は、リスト、大きなプレビュー、表示なし、から選べます。
-- **フォーカスの枠。** 入力中のウィンドウを、細い枠で囲みます。
 - **メニューバー。** 使うかどうかは選べます。このデスクトップのウィンドウを 1 つずつアイコンで並べ、デスクトップの番号を出します。
+
+<img src="assets/tile-border.svg" width="96" align="right" alt="フォーカス中のウィンドウを囲む枠">
+
+**おまけ: フォーカスの枠。** 入力中のウィンドウを細い枠で囲むので、キーがどこに入るか分かります。オフにもできます。
+
+<br clear="right">
+
+## やらないこと
+
+<img src="assets/tile-noresize.svg" width="96" align="right" alt="ウィンドウの大きさは変わらない">
+
+- **サイズ変更、タイル配置、レイアウト。** ウィンドウの大きさと位置はそのままです。Raycast などを使うか、タイル配置なら [AeroSpace](https://github.com/nikitabobko/AeroSpace) を使ってください。
+- **枠の色や形の変更。** それには [JankyBorders](https://github.com/FelixKratz/JankyBorders) を使ってください。
+
+<br clear="right">
 
 ## インストール
 
@@ -122,7 +123,7 @@ com.apple.Safari = 1
 - **枠は SkyLight で描きます。** JankyBorders と同じやり方で、NSWindow は作りません。
 - **ホットキーは CGEventTap** で、メインのランループで受けます。スレッドは増やしません。
 
-2 つのツールを組み合わせたものです。[AeroSpace](https://github.com/nikitabobko/AeroSpace)（使っていないデスクトップのウィンドウを画面の隅に退避する）と、[JankyBorders](https://github.com/FelixKratz/JankyBorders)（枠）。タイル配置、レイアウト、色を変えたいなら、そちらを使ってください。
+2 つのツールを組み合わせたものです。[AeroSpace](https://github.com/nikitabobko/AeroSpace)（使っていないデスクトップのウィンドウを画面の隅に退避する）と、[JankyBorders](https://github.com/FelixKratz/JankyBorders)（枠）。
 
 ## メモリ
 
