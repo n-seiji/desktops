@@ -4,15 +4,28 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: write
-  id-token: write
-  attestations: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  release:
+  build:
     runs-on: macos-14
+    permissions:
+      contents: write
+    outputs:
+      sums: ${{ steps.sums.outputs.sums }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Tagged commit must be on main
+        run: |
+          set -eu
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
+            || { echo "$GITHUB_REF_NAME ($GITHUB_SHA) is not on main; merge it to main and tag from there" >&2; exit 1; }
       - name: Tag must match JD_VERSION
         run: |
           version="$(sed -n 's/^#define JD_VERSION "\(.*\)"$/\1/p' src/common.h)"
@@ -54,6 +67,7 @@ jobs:
           set -eu
           keychain="$RUNNER_TEMP/jd-signing.keychain-db"
           keychain_password="$(openssl rand -base64 32)"
+          echo "::add-mask::$keychain_password"
           echo "KEYCHAIN_PATH=$keychain" >> "$GITHUB_ENV"
           security create-keychain -p "$keychain_password" "$keychain"
           security set-keychain-settings -lut 21600 "$keychain"
@@ -69,8 +83,13 @@ jobs:
           security default-keychain -d user -s "$keychain"
           identity="$(security find-identity -v -p codesigning "$keychain" | sed -n 's/^ *[0-9]*) [0-9A-F]* "\(Developer ID Application: .*\)"$/\1/p' | head -n 1)"
           [ -n "$identity" ] || { echo "no 'Developer ID Application' identity in the imported certificate" >&2; exit 1; }
+          # Keep the signer's name and Team ID out of the public logs, including the env shown for later steps.
+          team="$(printf '%s' "$identity" | sed -n 's/.*(\([A-Z0-9]*\))$/\1/p')"
+          name="${identity#Developer ID Application: }"; name="${name% (*}"
+          echo "::add-mask::$identity"
+          [ -z "$team" ] || echo "::add-mask::$team"
+          [ -z "$name" ] || echo "::add-mask::$name"
           echo "CODESIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
-          echo "signing with: $identity"
       - uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
       - run: mise run dist
       - run: mise run dist-app
@@ -100,25 +119,31 @@ jobs:
           codesign --verify --strict --verbose=2 dist/arm64/just-desktops
           codesign --verify --strict --verbose=2 dist/x86_64/just-desktops
           codesign --verify --deep --strict --verbose=2 dist/just-desktops.app
-          codesign -dvv dist/just-desktops.app 2>&1 | grep -E 'Authority|TeamIdentifier|flags|Timestamp'
           if [ "$NOTARIZE" = 1 ]; then
             check="$RUNNER_TEMP/verify-app"
             rm -rf "$check"; mkdir -p "$check"
             ditto -x -k dist/just-desktops-*.app.zip "$check"
             xcrun stapler validate "$check/just-desktops.app"
-            spctl --assess --type execute --verbose=4 "$check/just-desktops.app" 2>&1 | tee "$RUNNER_TEMP/spctl.txt"
-            grep -q 'source=Notarized Developer ID' "$RUNNER_TEMP/spctl.txt"
+            spctl --assess --type execute --verbose=4 "$check/just-desktops.app" > "$RUNNER_TEMP/spctl.txt" 2>&1 || true
+            grep -q 'source=Notarized Developer ID' "$RUNNER_TEMP/spctl.txt" \
+              || { echo "Gatekeeper does not accept the app as notarized Developer ID" >&2; exit 1; }
+            echo "Gatekeeper: notarized Developer ID"
           fi
       - name: Checksums
+        id: sums
         run: |
           cd dist
           for f in just-desktops-darwin-*.tar.gz just-desktops-*.app.zip; do shasum -a 256 "$f" > "$f.sha256"; done
-      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-path: |
-            dist/*.tar.gz
-            dist/*.app.zip
-      - run: gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/*.tar.gz.sha256 dist/*.app.zip dist/*.app.zip.sha256 --generate-notes
+          # publish checks the draft against these, not against the draft's own .sha256 files.
+          { echo "sums<<EOF"; cat ./*.sha256; echo EOF; } >> "$GITHUB_OUTPUT"
+      - name: Create draft release
+        run: |
+          set -eu
+          # GitHub allows several drafts for one tag; publish must find exactly ours.
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "a release or draft for $GITHUB_REF_NAME already exists; delete it before re-running" >&2; exit 1
+          fi
+          gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/*.tar.gz.sha256 dist/*.app.zip dist/*.app.zip.sha256 --draft --verify-tag --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Remove signing keychain and keys
@@ -126,3 +151,37 @@ jobs:
         run: |
           if [ -n "${KEYCHAIN_PATH:-}" ]; then security delete-keychain "$KEYCHAIN_PATH" || true; fi
           rm -f "$RUNNER_TEMP/developer-id.p12" "$RUNNER_TEMP/AuthKey.p8"
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download draft release assets
+        run: gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" -D dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Verify the draft is what build made
+        env:
+          SUMS: ${{ needs.build.outputs.sums }}
+        run: |
+          set -eu
+          expected="$RUNNER_TEMP/expected.sha256"
+          printf '%s\n' "$SUMS" > "$expected"
+          cd dist
+          shasum -a 256 -c "$expected"
+          [ "$(printf '%s\n' *.tar.gz *.app.zip | sort)" = "$(awk '{print $2}' "$expected" | sort)" ] \
+            || { echo "the draft's files differ from the ones build made" >&2; exit 1; }
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.app.zip
+      - name: Publish release
+        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
+        env:
+          GH_TOKEN: ${{ github.token }}
