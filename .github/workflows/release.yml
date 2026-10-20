@@ -1,17 +1,62 @@
 name: release
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+    paths: [src/common.h]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      # write is only needed to see draft releases; this job writes nothing.
+      contents: write
+    outputs:
+      release: ${{ steps.check.outputs.release }}
+      tag: ${{ steps.check.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Decide whether to release
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          [ "$GITHUB_REF" = refs/heads/main ] \
+            || { echo "releases run from main only, not $GITHUB_REF" >&2; exit 1; }
+          version="$(sed -n 's/^#define JD_VERSION "\(.*\)"$/\1/p' src/common.h)"
+          [ -n "$version" ] || { echo "JD_VERSION not found in src/common.h" >&2; exit 1; }
+          printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' \
+            || { echo "JD_VERSION '$version' is not X.Y.Z" >&2; exit 1; }
+          tag="v$version"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          # Only a real 404 means absent; any other error fails the job.
+          releases="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases" --jq '.[].tag_name')"
+          if printf '%s\n' "$releases" | grep -Fxq -- "$tag"; then
+            echo "$tag already has a release or draft; nothing to do"
+            echo "release=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if out="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" 2>&1)"; then
+            echo "$tag already has a git tag; nothing to do"
+            echo "release=false" >> "$GITHUB_OUTPUT"; exit 0
+          elif ! printf '%s' "$out" | grep -q 'HTTP 404'; then
+            echo "could not check the tag $tag: $out" >&2; exit 1
+          fi
+          echo "$tag is new; releasing"
+          echo "release=true" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: check
+    if: needs.check.outputs.release == 'true'
     runs-on: macos-14
     permissions:
       contents: write
@@ -19,18 +64,21 @@ jobs:
       sums: ${{ steps.sums.outputs.sums }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Tagged commit must be on main
+      - name: Release must not exist yet
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.check.outputs.tag }}
         run: |
           set -eu
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
-            || { echo "$GITHUB_REF_NAME ($GITHUB_SHA) is not on main; merge it to main and tag from there" >&2; exit 1; }
-      - name: Tag must match JD_VERSION
-        run: |
-          version="$(sed -n 's/^#define JD_VERSION "\(.*\)"$/\1/p' src/common.h)"
-          [ -n "$version" ] || { echo "JD_VERSION not found in src/common.h" >&2; exit 1; }
-          [ "$GITHUB_REF_NAME" = "v$version" ] || { echo "tag $GITHUB_REF_NAME does not match JD_VERSION v$version" >&2; exit 1; }
+          releases="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases" --jq '.[].tag_name')"
+          if printf '%s\n' "$releases" | grep -Fxq -- "$TAG"; then
+            echo "a release or draft for $TAG already exists" >&2; exit 1
+          fi
+          if out="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" 2>&1)"; then
+            echo "the git tag $TAG already exists" >&2; exit 1
+          elif ! printf '%s' "$out" | grep -q 'HTTP 404'; then
+            echo "could not check the tag $TAG: $out" >&2; exit 1
+          fi
       - name: Check signing and notarization secrets
         env:
           P12_BASE64: ${{ secrets.DEVELOPER_ID_P12_BASE64 }}
@@ -137,15 +185,13 @@ jobs:
           # publish checks the draft against these, not against the draft's own .sha256 files.
           { echo "sums<<EOF"; cat ./*.sha256; echo EOF; } >> "$GITHUB_OUTPUT"
       - name: Create draft release
-        run: |
-          set -eu
-          # GitHub allows several drafts for one tag; publish must find exactly ours.
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            echo "a release or draft for $GITHUB_REF_NAME already exists; delete it before re-running" >&2; exit 1
-          fi
-          gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/*.tar.gz.sha256 dist/*.app.zip dist/*.app.zip.sha256 --draft --verify-tag --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.check.outputs.tag }}
+        run: |
+          set -eu
+          # The tag does not exist yet; GitHub creates it at --target when the draft is published.
+          gh release create "$TAG" dist/*.tar.gz dist/*.tar.gz.sha256 dist/*.app.zip dist/*.app.zip.sha256 --draft --target "$GITHUB_SHA" --generate-notes
       - name: Remove signing keychain and keys
         if: always()
         run: |
@@ -153,7 +199,7 @@ jobs:
           rm -f "$RUNNER_TEMP/developer-id.p12" "$RUNNER_TEMP/AuthKey.p8"
 
   publish:
-    needs: build
+    needs: [check, build]
     runs-on: ubuntu-latest
     environment: release
     permissions:
@@ -162,9 +208,10 @@ jobs:
       attestations: write
     steps:
       - name: Download draft release assets
-        run: gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" -D dist
+        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -D dist
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.check.outputs.tag }}
       - name: Verify the draft is what build made
         env:
           SUMS: ${{ needs.build.outputs.sums }}
@@ -176,12 +223,33 @@ jobs:
           shasum -a 256 -c "$expected"
           [ "$(printf '%s\n' *.tar.gz *.app.zip | sort)" = "$(awk '{print $2}' "$expected" | sort)" ] \
             || { echo "the draft's files differ from the ones build made" >&2; exit 1; }
+      - name: Tag must not exist yet
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.check.outputs.tag }}
+        run: |
+          set -eu
+          # Checked before attesting too: the attestation goes to the public Sigstore log.
+          if out="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" 2>&1)"; then
+            echo "the git tag $TAG appeared during approval; not publishing" >&2; exit 1
+          elif ! printf '%s' "$out" | grep -q 'HTTP 404'; then
+            echo "could not check the tag $TAG: $out" >&2; exit 1
+          fi
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             dist/*.tar.gz
             dist/*.app.zip
       - name: Publish release
-        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.check.outputs.tag }}
+        run: |
+          set -eu
+          # Publishing creates the tag; refuse if someone made it while we waited for approval.
+          if out="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" 2>&1)"; then
+            echo "the git tag $TAG appeared during approval; not publishing" >&2; exit 1
+          elif ! printf '%s' "$out" | grep -q 'HTTP 404'; then
+            echo "could not check the tag $TAG: $out" >&2; exit 1
+          fi
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false

@@ -1,6 +1,6 @@
 # Releasing
 
-A `v*` tag on a commit in `main` runs `.github/workflows/release.yml`. The `build` job builds the CLI tarballs and the app zip and stores them in a draft release. After you approve the `release` environment, the `publish` job verifies the checksums, attests the files and publishes the release.
+Merging a change to `JD_VERSION` in `src/common.h` into `main` runs `.github/workflows/release.yml`. The `check` job skips the run if `vX.Y.Z` already has a release, a draft or a git tag. Otherwise the `build` job builds the CLI tarballs and the app zip and stores them in a draft release. After you approve the `release` environment, the `publish` job verifies the checksums, attests the files and publishes the release. GitHub creates the `vX.Y.Z` tag at that point, on the merged commit. Nobody tags by hand.
 
 Without the secrets below the artifacts are ad-hoc signed, as before. With them the workflow signs with a Developer ID Application certificate, notarizes, staples the app and re-zips it, then computes the checksums from the final files. The attestations are made from those same files after approval.
 
@@ -45,7 +45,7 @@ Setting only some of a group fails the release before building. Notarization wit
 scripts/setup-release-env.sh
 ```
 
-Run it once. It creates the `release` environment with you as the required reviewer and allows deployments from `v*` tags only. It is safe to re-run. Set `REVIEWER` or pass a login to change the reviewer, and `REPO` to change the repository.
+Run it once, and again after the change that moved the release trigger to `main` merges, before the first run. It creates the `release` environment with you as the required reviewer and allows deployments from the `main` branch only. It replaces the old `v*` tag policy. It is safe to re-run. Set `REVIEWER` or pass a login to change the reviewer, and `REPO` to change the repository.
 
 Without it GitHub creates the environment on first use with no reviewers, and `publish` runs unapproved. Check it:
 
@@ -56,25 +56,30 @@ gh api repos/n-seiji/just-desktops/environments/release/deployment-branch-polici
 
 ## Cutting a release
 
-1. Set `JD_VERSION` in `src/common.h` to the new version, merge it to `main`.
-2. Tag the merged commit: `git tag vX.Y.Z && git push origin vX.Y.Z`. `build` fails if the tag and `JD_VERSION` differ, or if the tagged commit is not on `main`.
+1. Set `JD_VERSION` in `src/common.h` to the new version (`X.Y.Z`) in a PR and merge it to `main`.
+2. `check` finds no release or tag for `vX.Y.Z` and starts `build`. A `common.h` change that leaves `JD_VERSION` alone runs `check` only, and it skips the rest. If the current version has no release yet, any `common.h` change starts one; the approval gate makes that harmless.
 3. `build` signs, notarizes and uploads a draft release. Review the draft under Releases: assets and notes. Optionally download it and run the checks below.
 4. In the Actions run, open "Review deployments" and approve `release`. `publish` verifies the checksums, attests the files and publishes the release.
 5. Update the cask: `scripts/bump-cask.sh X.Y.Z`. Do this after approval, since it verifies the attestation.
 
+The first release of a version that is already set (no release, draft or tag yet): Actions > release > Run workflow, on `main`. Dispatch from any other ref fails in `check`.
+
 ### What is public before approval
 
-Public: the tag, and the Actions logs. The workflow masks the signer's name and Team ID in them; they become public with the release, inside the signed app.
-Not public: the binaries, the attestation and the release page. The draft is visible only to people with write access.
+Public: the Actions logs. The workflow masks the signer's name and Team ID in them; they become public with the release, inside the signed app.
+Not public: the tag, the binaries, the attestation and the release page. The draft is visible only to people with write access. The tag, the release and the attestation appear after approval.
 
 ### Reject, re-run, expiry
 
-- Reject: reject the run in "Review deployments" (or cancel it), then `gh release delete vX.Y.Z --yes --cleanup-tag` to remove the draft and the tag. A run left waiting holds the tag's concurrency group, so a new run for the same tag would queue behind it.
-- "Re-run all jobs" fails in `build` because the draft already exists. Re-run only the failed `publish` job, or delete the draft first.
-- A run waiting for approval expires after 30 days. The draft stays.
-- A run uses the `release.yml` from the tag. If `publish` is broken, delete the draft and tag and tag again after the fix.
+- Reject: reject the run in "Review deployments" (or cancel it), then `gh release delete vX.Y.Z --yes`. The tag does not exist yet, so there is nothing else to clean up. Then Actions > release > Run workflow on `main` starts it again.
+- A run waiting for approval holds the `release` concurrency group until you approve, reject or it expires (30 days). Meanwhile only the newest later run waits; older waiting ones are cancelled, which loses nothing because each run reads the version at its own commit.
+- After an expiry the draft stays and a new run would skip it: delete the draft (`gh release delete vX.Y.Z --yes`), then Run workflow on `main`.
+- "Re-run all jobs" does nothing: `check` sees the draft and skips `build`. Re-run only the failed `publish` job, or delete the draft and start a new run.
+- If `build` fails after creating the draft (an asset upload, say), re-running it stops at its guard. Delete the draft first.
+- A run uses the `release.yml` of the commit that started it. If `publish` is broken, delete the draft, fix `main`, and run the workflow again.
 - `publish` uses `GITHUB_TOKEN`, so the release does not trigger workflows on `release: published`.
 - The attestation is made on the ubuntu runner after approval, not on the macOS runner that built the files. `publish` first checks the draft's files against the checksums `build` passed along, so it attests exactly what `build` made.
+- `build` and `publish` each fail if the release or the tag appeared in the meantime. `publish` checks the tag right before publishing.
 
 ## Checking the result
 

@@ -140,7 +140,7 @@ com.apple.Safari = 1
 
 ## 開発
 
-Xcode Command Line Tools と [mise](https://mise.jdx.dev) が必要です。`mise run build`、`mise run run`（ビルドしてフォアグラウンドで動かす）、`mise run test`、`mise run test-san`（同じテストを AddressSanitizer と UndefinedBehaviorSanitizer つきで動かす）を使います。`scripts/footprint.sh [config-file] [seconds]` は待機中のメモリをバイト数で出します。先に動いているものを止めてください。`v*` のタグを push すると、arm64 と x86_64 のバイナリが Releases に出ます。コードの地図は [docs/architecture.md](docs/architecture.md)（英語）です。モジュール、データの流れ、スレッド、メモリの決まりを書いています。
+Xcode Command Line Tools と [mise](https://mise.jdx.dev) が必要です。`mise run build`、`mise run run`（ビルドしてフォアグラウンドで動かす）、`mise run test`、`mise run test-san`（同じテストを AddressSanitizer と UndefinedBehaviorSanitizer つきで動かす）を使います。`scripts/footprint.sh [config-file] [seconds]` は待機中のメモリをバイト数で出します。先に動いているものを止めてください。`JD_VERSION` を変えて `main` にマージするとリリースがビルドされ、承認すると公開されます（[docs/releasing.md](docs/releasing.md)、英語）。コードの地図は [docs/architecture.md](docs/architecture.md)（英語）です。モジュール、データの流れ、スレッド、メモリの決まりを書いています。
 
 ## 制限
 
