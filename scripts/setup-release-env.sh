@@ -1,7 +1,7 @@
 #!/bin/bash
 # Usage: scripts/setup-release-env.sh [reviewer-login]
 # Configures the `release` GitHub environment that gates the publish job in release.yml:
-# one required reviewer, deployable only from v* tags. Safe to re-run. Reviewer defaults to
+# one required reviewer, deployable only from the main branch. Safe to re-run. Reviewer defaults to
 # n-seiji (or $REVIEWER); the repository defaults to n-seiji/just-desktops (or $REPO).
 set -eu
 reviewer="${1:-${REVIEWER:-n-seiji}}"
@@ -24,7 +24,7 @@ policies="$(gh api "$env_path/deployment-branch-policies" -q '.branch_policies[]
 have=0
 while IFS=$'\t' read -r pid name type; do
   [ -n "$pid" ] || continue
-  if [ "$name" = "v*" ] && [ "$type" = "tag" ]; then
+  if [ "$name" = "main" ] && [ "$type" = "branch" ]; then
     have=1
   else
     gh api -X DELETE "$env_path/deployment-branch-policies/$pid" >/dev/null
@@ -32,7 +32,7 @@ while IFS=$'\t' read -r pid name type; do
 done <<< "$policies"
 if [ "$have" = 0 ]; then
   gh api -X POST "$env_path/deployment-branch-policies" --input - >/dev/null <<'JSON'
-{"name": "v*", "type": "tag"}
+{"name": "main", "type": "branch"}
 JSON
 fi
 
