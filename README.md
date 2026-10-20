@@ -28,6 +28,28 @@ Keyboard-driven desktops for macOS, in one small background process (about 8MB).
     </td>
 </table>
 
+Three ways to see the windows on this desktop:
+
+<table>
+  <tr>
+    <td align="center" valign="top" width="33%">
+      <img src="assets/tile-menubar.svg" width="160" alt="A menu bar with one icon per window and the desktop key; the highlight moves to the focused window"><br>
+      <b>Menu bar</b><br>
+      <sub>One icon per window, and the desktop key. Or just one small icon.</sub>
+    </td>
+    <td align="center" valign="top" width="33%">
+      <img src="assets/tile-list.svg" width="160" alt="A list of windows whose selection moves down as Tab is pressed"><br>
+      <b>List</b><br>
+      <sub>⌥Tab shows each window's app and title.</sub>
+    </td>
+    <td align="center" valign="top" width="33%">
+      <img src="assets/tile-square.svg" width="160" alt="A large preview of one window that changes as Tab is pressed, with a row of dots below"><br>
+      <b>Square</b><br>
+      <sub>⌥Tab shows a large preview of each window. Or turn the panel off and Tab just jumps.</sub>
+    </td>
+  </tr>
+</table>
+
 - **Desktops.** Press `⌥1`, `⌥2`, `⌥3`... to switch between up to 10 desktops. Add Shift to take the focused window with you. macOS Spaces and SIP are left alone.
 - **Window switcher.** Hold `⌥` and press Tab to pick a window on this desktop. Shown as a list, a big preview, or not at all.
 - **Menu bar.** Optional. One icon per window on this desktop, and the desktop number.
