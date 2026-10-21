@@ -3,12 +3,14 @@
 #include "apps.h"
 #include "ax.h"
 #include "config.h"
+#include "membership.h"
 #include "menubar.h"
 #include "shown.h"
 #include "skylight.h"
 #include <dispatch/dispatch.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 // The apps and windows the manager knows, kept in step with Accessibility notifications. Workspaces
 // are emulated like AeroSpace does: windows of inactive workspaces are parked at the bottom-right
@@ -22,6 +24,12 @@ static int capwins;
 static app_t *apps;
 static int napps, capapps;
 static AXUIElementRef sys;
+
+// The desktops of the previous run (see membership.h), kept for windows that are tracked late.
+#define RESTORED_S 30
+static memb_win_t *restored;
+static int nrestored;
+static double restored_until;
 
 static void ax_cb(AXObserverRef obs, AXUIElementRef el, CFStringRef n, void *ctx);
 
@@ -45,6 +53,53 @@ static void remove_win_at(int i) {
     memmove(&wins[i], &wins[i + 1], sizeof *wins * (--nwins - i)); // keep order: cycling relies on it
 }
 
+// ---- membership across a restart ----
+
+char *wm_membership(void) {
+    size_t cap = 64 + 32 * (size_t)nwins;
+    char *buf = malloc(cap);
+    memb_win_t *t = malloc(sizeof *t * (nwins + 1));
+    if (!buf || !t) {
+        free(buf);
+        free(t);
+        return NULL;
+    }
+    int n = 0;
+    for (int i = 0; i < nwins; i++)
+        if (wins[i].ws != WS_EVERY) t[n++] = (memb_win_t){wins[i].pid, wins[i].wid, wins[i].ws};
+    memb_format(buf, cap, time(NULL), cur_ws, t, n);
+    free(t);
+    return buf;
+}
+
+void wm_restore_membership(const char *text) {
+    int cap = 1;
+    for (const char *p = text; (p = strchr(p, '\n')); p++) cap++;
+    memb_win_t *t = malloc(sizeof *t * cap);
+    int cur, n = t ? memb_parse(text, time(NULL), config_workspaces(), &cur, t, cap) : -1;
+    if (n < 0) {
+        free(t);
+        return;
+    }
+    cur_ws = cur;
+    restored = t;
+    nrestored = n;
+    restored_until = CFAbsoluteTimeGetCurrent() + RESTORED_S;
+}
+
+static int restored_ws(pid_t pid, uint32_t wid) {
+    if (restored && CFAbsoluteTimeGetCurrent() > restored_until) {
+        free(restored);
+        restored = NULL;
+    }
+    for (int i = 0; restored && i < nrestored; i++)
+        if (restored[i].pid == pid && restored[i].wid == wid) {
+            restored[i].wid = 0; // used once
+            return restored[i].ws;
+        }
+    return 0;
+}
+
 // ---- tracking ----
 
 static win_t *track(app_t *a, AXUIElementRef el) {
@@ -65,14 +120,25 @@ static win_t *track(app_t *a, AXUIElementRef el) {
         capwins = cap;
     }
     w = &wins[nwins++];
-    *w = (win_t){(AXUIElementRef)CFRetain(el), a->pid, wid, a->assign == CONFIG_EVERY ? WS_EVERY : a->assign ? a->assign : cur_ws, {0, 0}, false, 0, false,
+    int back = restored_ws(a->pid, wid);
+    *w = (win_t){(AXUIElementRef)CFRetain(el), a->pid, wid, memb_pick(a->assign, back, cur_ws), {0, 0}, false, 0, false,
                  ax_bool(el, kAXMinimizedAttribute)};
+    wm_log_ws(w, -1, a->assign == 0 && back ? "restore-file" : "track");
 
     // A window left in the corner by a previous crash: bring it back.
     CGPoint p;
     if (ax_value(el, kAXPositionAttribute, kAXValueTypeCGPoint, &p) && shown_is_parked(p, CGDisplayBounds(CGMainDisplayID()))) {
         CGRect b = CGDisplayBounds(CGMainDisplayID());
-        ax_set_position(el, CGPointMake(b.origin.x + 40, b.origin.y + 60));
+        CGPoint safe = CGPointMake(b.origin.x + 40, b.origin.y + 60);
+        // Only a window shown here is moved out. One of another desktop stays in the corner, parked, and
+        // returns to the safe point when its desktop is shown.
+        if (wm_here(w)) {
+            ax_set_position(el, safe);
+        } else {
+            w->saved = safe;
+            w->hidden = true;
+        }
+        wm_log_recover(w);
     }
 
     void *ctx = (void *)(intptr_t)a->pid;
@@ -152,7 +218,10 @@ static void add_app(pid_t pid, int assign, bool nopreview, int attempt) {
             track(wm_find_app(pid), CFArrayGetValueAtIndex(list, i));
         CFRelease(list);
     }
-    if (attempt > 0) wm_on_focus();
+    if (attempt > 0) {
+        wm_set_trigger("retry");
+        wm_on_focus();
+    }
 }
 
 void wm_add_app(pid_t pid, const char *bundle_id) {
@@ -179,13 +248,16 @@ static void ax_cb(AXObserverRef obs, AXUIElementRef el, CFStringRef n, void *ctx
     app_t *a = wm_find_app((pid_t)(intptr_t)ctx);
     if (!a) return;
     if (CFEqual(n, kAXWindowCreatedNotification)) {
+        wm_set_trigger("ax-created");
         track(a, el);
         wm_on_focus();
     } else if (CFEqual(n, kAXUIElementDestroyedNotification)) {
+        wm_set_trigger("ax-destroyed");
         for (int i = 0; i < nwins; i++)
             if (CFEqual(wins[i].el, el)) { remove_win_at(i); break; }
         wm_on_focus();
     } else if (CFEqual(n, kAXFocusedWindowChangedNotification) || CFEqual(n, kAXMainWindowChangedNotification)) {
+        wm_set_trigger("ax-focus");
         wm_on_focus();
     } else {
         bool mini = CFEqual(n, kAXWindowMiniaturizedNotification);

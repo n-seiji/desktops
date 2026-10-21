@@ -8,4 +8,4 @@ bool ax_value(AXUIElementRef el, CFStringRef attr, AXValueType type, void *out);
 bool ax_bool(AXUIElementRef el, CFStringRef attr);
 bool ax_is(AXUIElementRef el, CFStringRef attr, CFStringRef want); // the string attribute equals want
 CFStringRef ax_title(AXUIElementRef el); // +1 AXTitle, or NULL
-void ax_set_position(AXUIElementRef el, CGPoint p);
+AXError ax_set_position(AXUIElementRef el, CGPoint p);

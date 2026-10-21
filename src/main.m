@@ -15,6 +15,7 @@
 #include <limits.h>
 #include <mach-o/dyld.h>
 #include <spawn.h>
+#include <stdlib.h>
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -34,9 +35,65 @@ bool jd_app_mode(void) {
     return app;
 }
 
-void jd_quit(void) {
+// A file in the per-user temp directory (mode 0700, unlike /tmp).
+static bool temp_path(const char *name, char *path, size_t cap) {
+    char dir[PATH_MAX];
+    size_t len = confstr(_CS_DARWIN_USER_TEMP_DIR, dir, sizeof dir);
+    if (len < 2 || len > sizeof dir) return false;
+    int n = snprintf(path, cap, "%s%s%s", dir, dir[len - 2] == '/' ? "" : "/", name);
+    return n > 0 && (size_t)n < cap;
+}
+
+#define STATE_FILE "just-desktops.state"
+static bool managing; // wm_restore_membership ran: there is a state worth saving
+
+// Reads the desktops the previous run saved, then deletes the file so a later crash cannot replay it.
+static void load_membership(void) {
+    char path[PATH_MAX];
+    if (!temp_path(STATE_FILE, path, sizeof path)) return;
+    int fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0) return;
+    struct stat st;
+    char *text = NULL;
+    if (fstat(fd, &st) == 0 && S_ISREG(st.st_mode) && st.st_uid == geteuid() && st.st_size < (1 << 20) && (text = malloc(st.st_size + 1))) {
+        ssize_t n = read(fd, text, st.st_size);
+        text[n > 0 ? n : 0] = 0;
+    }
+    close(fd);
+    unlink(path);
+    if (text) wm_restore_membership(text);
+    free(text);
+}
+
+static void save_membership(void) {
+    char path[PATH_MAX], tmp[PATH_MAX];
+    char *text = wm_membership();
+    if (text && temp_path(STATE_FILE, path, sizeof path) && snprintf(tmp, sizeof tmp, "%s.%d", path, getpid()) < (int)sizeof tmp) {
+        unlink(tmp);
+        int fd = open(tmp, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+        if (fd >= 0) {
+            size_t len = strlen(text);
+            bool ok = write(fd, text, len) == (ssize_t)len;
+            if (close(fd) != 0 || !ok || rename(tmp, path) != 0) unlink(tmp);
+        }
+    }
+    free(text);
+}
+
+// Every way out goes through here, and only the first caller does the work: the state is saved (needs no
+// Accessibility, so it comes first), then the windows come back. There is no atexit handler: a second
+// instance that exits on the lock must not run this and overwrite the file with an empty one.
+static void leave(void) {
+    static bool done;
+    if (done || !managing) return;
+    done = true;
+    save_membership();
     wm_restore_all();
     border_hide();
+}
+
+void jd_quit(void) {
+    leave();
     exit(0);
 }
 
@@ -45,8 +102,7 @@ void jd_quit(void) {
 // image cannot reach LaunchServices, so it sees no running apps and draws an empty strip.) A bundle
 // is opened through LaunchServices, a bare binary is run directly.
 void jd_restart(void) {
-    wm_restore_all();
-    border_hide();
+    leave();
     char path[PATH_MAX], pid[16];
     uint32_t n = sizeof path;
     if (_NSGetExecutablePath(path, &n) == 0) {
@@ -68,17 +124,15 @@ void jd_restart(void) {
     exit(1);
 }
 
-// Takes the single-instance lock in the per-user temp directory (mode 0700, unlike /tmp). Exits 0 when
+// Takes the single-instance lock in the per-user temp directory. Exits 0 when
 // another instance holds it: launchd's KeepAlive would respawn a nonzero exit forever. Any other
 // failure is a real error and exits 1. The descriptor stays open for the life of the process.
 static void acquire_lock(void) {
-    char dir[PATH_MAX], path[PATH_MAX];
-    size_t len = confstr(_CS_DARWIN_USER_TEMP_DIR, dir, sizeof dir);
-    if (len == 0 || len > sizeof dir) {
+    char path[PATH_MAX];
+    if (!temp_path("just-desktops.lock", path, sizeof path)) {
         fprintf(stderr, "just-desktops: cannot find the per-user temp directory: %s\n", strerror(errno));
         exit(1);
     }
-    snprintf(path, sizeof path, "%s%sjust-desktops.lock", dir, dir[len - 2] == '/' ? "" : "/");
     // close-on-exec: the restart helper must not inherit the lock, or the new instance could not take it
     int fd = open(path, O_CREAT | O_RDWR | O_NOFOLLOW | O_CLOEXEC, 0600);
     struct stat st;
@@ -137,16 +191,21 @@ int main(int argc, char **argv) {
         config_load();
         if (config_switcher_style() >= SW_SQUARE) thumb_request_access();
         wm_init();
+        load_membership();
+        managing = true;
+        [NSNotificationCenter.defaultCenter addObserverForName:NSApplicationWillTerminateNotification object:nil queue:nil
+                                                    usingBlock:^(NSNotification *n) { (void)n; leave(); }];
         apps_init();
         if (config_menubar() != MB_OFF) menubar_init(config_menubar());
         // After AppKit is up: edge windows made before it stay ordered out, except the first.
         if (config_border()) border_init();
         if (!hotkey_init()) {
             fprintf(stderr, "just-desktops: could not create keyboard event tap\n");
-            wm_restore_all();
+            leave();
             return 1;
         }
 
+        wm_set_trigger("start");
         wm_on_focus();
     }
 

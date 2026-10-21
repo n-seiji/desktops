@@ -6,3 +6,4 @@ void apps_init(void); // starts the launch / quit / activate events and adds the
 pid_t apps_frontmost(void);
 CGImageRef apps_icon(pid_t pid, int px); // +1, a px x px copy of the app's icon, or NULL
 CFStringRef apps_name(pid_t pid);        // +1 localized name, or NULL
+bool apps_alive(pid_t pid);              // running and not terminating

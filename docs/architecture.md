@@ -6,12 +6,12 @@ just-desktops is one process on the main run loop. It emulates desktops by movin
 
 | File | Job |
 | --- | --- |
-| `main.m` | Start up, single-instance lock, signals, `jd_quit` and `jd_restart`. |
+| `main.m` | Start up, single-instance lock, signals, `jd_quit` and `jd_restart`, the way out (save desktops, restore windows). |
 | `app.m` | The `.app` bundle only: first-run Accessibility panel, login item, About, settings writes. |
 | `config.c`, `config_write.c` | Read the config file once; write one key back for the app's settings menu. |
 | `apps.m` | NSWorkspace launch, quit and activate events; app names and icons. |
 | `wm.c` | The apps and windows we track, and the Accessibility notifications that update them. |
-| `wm_focus.c` | Park and unpark windows, switch desktops, move a window, pull windows macOS focuses on its own. |
+| `wm_focus.c` | Park and unpark windows, switch desktops, move a window, pull windows macOS focuses on its own, the `ws` log. |
 | `wm_list.c` | The window lists the switchers and the menu bar draw from. |
 | `ax.c` | Typed reads of Accessibility attributes. |
 | `hotkey.c` | The keyboard event tap: desktop keys, ⌥Tab, Esc. |
@@ -21,7 +21,7 @@ just-desktops is one process on the main run loop. It emulates desktops by movin
 | `menubar.m` | The status item: strip drawing, click handling. |
 | `menubar_glyph.m`, `menubar_overflow.m`, `menubar_menu.m` | App glyph masks, the "+k" panel, the right-click menu. |
 
-Pure logic, with a unit test each in `tests/`: `select.c` (selection stepping), `keyrules.c` (modifier match, repeat throttle), `strip.c` (strip geometry and hit test), `order.c` (menu bar order and overflow split), `shown.c` (visibility, grace period, parking point), `cardmath.c` (easing and card layout), `border_geom.c` (ring rects), `glyph.c` (icon to mask), `title.c` (row text).
+Pure logic, with a unit test each in `tests/`: `select.c` (selection stepping), `keyrules.c` (modifier match, repeat throttle), `strip.c` (strip geometry and hit test), `order.c` (menu bar order and overflow split), `membership.c` (the saved desktops file: format, parse, pins), `shown.c` (visibility, grace period, parking point), `cardmath.c` (easing and card layout), `border_geom.c` (ring rects), `glyph.c` (icon to mask), `title.c` (row text).
 
 Headers: one per module, and `common.h` for the limits and `sw_entry_t` several modules share. `wm_priv.h` and `menubar_priv.h` are for the files of that module only.
 
@@ -30,6 +30,33 @@ Headers: one per module, and `common.h` for the limits and `sw_entry_t` several 
 Events come in from three places: Accessibility observers (window created, destroyed, focused, minimized), NSWorkspace (app launched, quit, activated) and the keyboard tap. `wm*.c` is the only owner of state: which windows exist, their desktop, whether they are parked, which desktop is current.
 
 After every change `wm_refresh_ui` reads the focused window once, then calls `border_show` or `border_hide` and `menubar_update`. The switchers pull a fresh list from `wm_windows` when they open and call `wm_focus_wid` to commit. Nothing outside `wm*.c` writes window state.
+
+## Leaving and restarting
+
+Every way out calls one function in `main.m`, and only the first call does anything: `jd_quit` (menu, signals), `jd_restart` (settings change), `NSApplicationWillTerminateNotification` (the Quit Apple Event that `brew upgrade`, logout and Activity Monitor send to the app), and the keyboard tap failing at start. There is no `atexit` handler, because a second instance that exits on the lock must not run it.
+
+It first saves the current desktop and each window's pid, window id and desktop to `just-desktops.state` in the per-user temp directory (the lock's directory), written to a temporary file and renamed, with a timestamp. Then it puts parked windows back on screen. That walk stops after 2.5 seconds, skips apps that are terminating and gives each Accessibility call 0.25 seconds, so a hung app cannot hold up a logout.
+
+At start, before `apps_init`, the file is read and deleted. A file older than 60 seconds, or more than 5 seconds ahead of the clock, is ignored. A window whose pid and window id match gets its saved desktop, unless its app is pinned, which wins; desktops above `desktops` are clamped. The table stays in memory for 30 seconds for windows that are tracked late, each entry used once. Windows that match nothing go to the current desktop, which is also restored. `membership.c` holds the format and parser, so the tests cover them.
+
+## Diagnostics
+
+Each time a window's desktop is set, `wm_log_ws` writes one `os_log` line (subsystem `dev.n-seiji.just-desktops`, category `ws`). Read it with:
+
+```
+log show --last 1h --predicate 'subsystem == "dev.n-seiji.just-desktops"'
+```
+
+A line looks like `wid=412 app=Google Chrome ws=3->1 reason=pull trigger=ax-focus cur=1 settling=0 stale=0 same_app_here=0 idle_ms=820`.
+
+- `ws=old->new`: `-1` as the old value is a window just tracked, `0` is on every desktop.
+- `reason`: `pull` (macOS focused a parked window), `move` (the move key), `track` (a new window), `restore-file` (a new window that got its desktop from the saved file).
+- `trigger`: the last thing that led to a focus check: `ax-focus`, `ax-created`, `ax-destroyed`, `activated`, `terminated`, `recheck` (the one after a desktop switch settles), `hotkey`, `menubar`, `retry` (an app that was not ready for Accessibility yet) or `start`. It is the last one seen, not proof of cause.
+- `settling` and `stale`: the quiet period after a desktop switch was running; the window is the one just parked.
+- `same_app_here`: other windows of the same app on the current desktop, not counting this one.
+- `idle_ms`: time since the last keyboard or mouse event.
+
+Window tracking also logs `found parked by a previous run` when it finds a window left in the corner. A window of the current desktop is moved to the top left of the main display; a window of another desktop stays parked there. App names and reasons are logged as public; window titles are never logged.
 
 ## Threading
 

@@ -53,6 +53,7 @@ static uint32_t last_front;
     }
     strip_hit_t hit = strip_hit([b convertPoint:e.locationInWindow fromView:nil].x, b.bounds.size.width, last_n, last_over);
     if (hit.slot >= 0) {
+        wm_set_trigger("menubar");
         wm_focus_wid(last_wids[hit.slot]);
         return;
     }

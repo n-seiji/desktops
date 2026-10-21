@@ -6,6 +6,7 @@ void wm_init(void);
 void wm_add_app(pid_t pid, const char *bundle_id);
 void wm_remove_app(pid_t pid);
 void wm_on_focus(void); // the focused window or app may have changed
+void wm_set_trigger(const char *what); // what led to the next wm_on_focus, a literal; only for the log
 void wm_switch(int ws);
 void wm_move_focused(int ws);
 int wm_current(void);
@@ -13,7 +14,9 @@ void wm_focus_wid(uint32_t wid);
 void wm_history(int dir); // -1 back, +1 forward through the focus history, across desktops
 void wm_history_hold(void); // windows focused by ⌥Tab are not recorded until wm_history_release
 void wm_history_release(uint32_t wid); // records wid, the window ⌥Tab ended on (0: whatever macOS reports focused)
-void wm_restore_all(void); // every parked window back on screen
+void wm_restore_all(void); // every parked window back on screen, in 2.5 s at most: for the way out
+char *wm_membership(void); // the desktops as text for the next run; malloc'd, NULL on failure
+void wm_restore_membership(const char *text); // apply that text; before apps_init
 
 // The switchable windows of this desktop for the switchers, in tracking order. *out is malloc'd and
 // each entry has +1 icon, app and title (the title is the row text); the caller releases them with

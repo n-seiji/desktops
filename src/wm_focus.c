@@ -1,5 +1,6 @@
 #include "wm.h"
 #include "wm_priv.h"
+#include "apps.h"
 #include "ax.h"
 #include "border.h"
 #include "config.h"
@@ -7,6 +8,9 @@
 #include "menubar.h"
 #include "shown.h"
 #include <dispatch/dispatch.h>
+#include <os/log.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 // Parking, switching and focus. A window of an inactive desktop sits at the bottom-right corner of
 // the main display; a desktop switch parks one set and unparks another, and a parked window that
@@ -18,6 +22,8 @@ static double settle_until; // until then, parked windows macOS activates on its
 static hist_t hist = {.at = -1};
 static double hold_until; // until then, only the window wm_history went to is recorded; 0 when recording
 static bool hold_switcher; // ⌥Tab is stepping through windows: they are not recorded
+static const char *trigger = "start"; // what led to the current wm_on_focus, for the log
+static bool shutting_down; // wm_restore_all is running: no Accessibility call may wait long
 
 // After a desktop change macOS hands activation from one parked window's app to the next,
 // about a second apart; each one extends the quiet period a user's Cmd-Tab has to wait out.
@@ -31,12 +37,15 @@ static CGPoint hide_point(void) {
 
 // Some apps animate a move while AXEnhancedUserInterface is on (Chrome, once an assistive app such
 // as a password manager turns it on), so a parked window would slide into the corner on screen.
-static void move(win_t *w, CGPoint p) {
+// While quitting the toggle is skipped: it is three more calls to an app that may be hung, and a timed-out
+// restore of the flag would leave it off.
+static AXError move(win_t *w, CGPoint p) {
     app_t *a = wm_find_app(w->pid);
-    bool eui = a && ax_bool(a->el, CFSTR("AXEnhancedUserInterface"));
+    bool eui = !shutting_down && a && ax_bool(a->el, CFSTR("AXEnhancedUserInterface"));
     if (eui) AXUIElementSetAttributeValue(a->el, CFSTR("AXEnhancedUserInterface"), kCFBooleanFalse);
-    ax_set_position(w->el, p);
+    AXError err = ax_set_position(w->el, p);
     if (eui) AXUIElementSetAttributeValue(a->el, CFSTR("AXEnhancedUserInterface"), kCFBooleanTrue);
+    return err;
 }
 
 void wm_hide(win_t *w) {
@@ -48,11 +57,12 @@ void wm_hide(win_t *w) {
     w->hidden = true;
 }
 
-static void show(win_t *w) {
-    if (!w->hidden) return;
-    move(w, w->saved);
+static AXError show(win_t *w) {
+    if (!w->hidden) return kAXErrorSuccess;
+    AXError err = move(w, w->saved);
     w->hidden = false;
     w->shown_at = CFAbsoluteTimeGetCurrent();
+    return err;
 }
 
 static void focus(win_t *w) {
@@ -74,6 +84,42 @@ static win_t *focus_in_current(void) {
     if (t) focus(t);
     return t;
 }
+
+// ---- log ----
+
+// `log show --predicate 'subsystem == "dev.n-seiji.just-desktops"'`; app names and reasons are public,
+// window titles never appear.
+static void app_name(pid_t pid, char *buf, size_t cap) {
+    CFStringRef s = apps_name(pid);
+    if (!s || !CFStringGetCString(s, buf, cap, kCFStringEncodingUTF8)) snprintf(buf, cap, "?");
+    if (s) CFRelease(s);
+}
+
+static os_log_t ws_log(void) {
+    static os_log_t l;
+    if (!l) l = os_log_create("dev.n-seiji.just-desktops", "ws");
+    return l;
+}
+
+void wm_log_ws(const win_t *w, int old, const char *reason) {
+    char app[128];
+    app_name(w->pid, app, sizeof app);
+    int here = 0;
+    for (int i = 0; i < nwins; i++)
+        if (&wins[i] != w && wins[i].pid == w->pid && wm_here(&wins[i])) here++;
+    double idle_s = CGEventSourceSecondsSinceLastEventType(kCGEventSourceStateCombinedSessionState, kCGAnyInputEventType);
+    long long idle = (long long)((idle_s < 1e9 ? idle_s : 1e9) * 1000);
+    os_log(ws_log(), "wid=%u app=%{public}s ws=%d->%d reason=%{public}s trigger=%{public}s cur=%d settling=%d stale=%d same_app_here=%d idle_ms=%lld",
+           w->wid, app, old, w->ws, reason, trigger, cur_ws, CFAbsoluteTimeGetCurrent() < settle_until, w->wid == stale, here, idle);
+}
+
+void wm_log_recover(const win_t *w) {
+    char app[128];
+    app_name(w->pid, app, sizeof app);
+    os_log(ws_log(), "wid=%u app=%{public}s found parked by a previous run", w->wid, app);
+}
+
+void wm_set_trigger(const char *what) { trigger = what; }
 
 // ---- ui ----
 
@@ -109,7 +155,9 @@ static void recheck_after_settle(void) {
     unsigned gen = ++recheck_gen;
     double wait = settle_until - CFAbsoluteTimeGetCurrent() + 0.02;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (wait > 0 ? wait : 0) * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        if (gen == recheck_gen) wm_on_focus();
+        if (gen != recheck_gen) return;
+        trigger = "recheck";
+        wm_on_focus();
     });
 }
 
@@ -125,7 +173,9 @@ void wm_on_focus(void) {
             recheck_after_settle();
         }
         if (settling || w->wid == stale) return;
+        int old = w->ws;
         w->ws = cur_ws;
+        wm_log_ws(w, old, "pull");
         show(w);
     }
     if (w) {
@@ -151,6 +201,7 @@ static void refresh_menubar_later(void) {
 
 void wm_switch(int ws) {
     if (ws < 1 || ws > config_workspaces() || ws == cur_ws) return;
+    trigger = "hotkey";
     win_t *f = wm_focused();
     if (f && f->ws == cur_ws) last_focus[cur_ws] = f->wid;
 
@@ -174,7 +225,10 @@ void wm_move_focused(int ws) {
     if (ws < 1 || ws > config_workspaces()) return;
     win_t *w = wm_focused();
     if (!w || w->ws == ws || w->ws == WS_EVERY) return;
+    trigger = "hotkey";
+    int old = w->ws;
     w->ws = ws;
+    wm_log_ws(w, old, "move");
     last_focus[ws] = w->wid;
     if (ws != cur_ws) {
         wm_hide(w);
@@ -200,6 +254,7 @@ void wm_history_hold(void) { hold_switcher = true; }
 void wm_history_release(uint32_t wid) {
     hold_switcher = false;
     if (!wid) {
+        trigger = "hotkey";
         wm_on_focus(); // no focus notice follows the release, so record the window it ended on
         return;
     }
@@ -220,6 +275,7 @@ void wm_history(int dir) {
     uint32_t wid = hist_step(&hist, dir, usable);
     win_t *w = wm_find_win(wid);
     if (!w) return;
+    trigger = "hotkey";
     hold_until = CFAbsoluteTimeGetCurrent() + SETTLE_S;
     // If focusing wid fails, a window clicked meanwhile must still be recorded once the hold ends.
     unsigned gen = ++history_gen;
@@ -234,6 +290,26 @@ void wm_history(int dir) {
     }
 }
 
+// The way out: a hung app must not hold up quitting or logging out, so the whole walk has a deadline
+// and every Accessibility call a short timeout.
+#define RESTORE_S 2.5
+#define RESTORE_AX_S 0.25
+
 void wm_restore_all(void) {
-    for (int i = 0; i < nwins; i++) show(&wins[i]);
+    shutting_down = true;
+    double end = CFAbsoluteTimeGetCurrent() + RESTORE_S;
+    bool *hung = calloc(nwins + 1, 1); // per window: its app already timed out, so the rest of its windows are left
+    for (int i = 0; i < nwins; i++) {
+        win_t *w = &wins[i];
+        if (!w->hidden || (hung && hung[i])) continue;
+        if (CFAbsoluteTimeGetCurrent() >= end) break;
+        if (!apps_alive(w->pid)) continue;
+        app_t *a = wm_find_app(w->pid);
+        if (a) AXUIElementSetMessagingTimeout(a->el, RESTORE_AX_S);
+        AXUIElementSetMessagingTimeout(w->el, RESTORE_AX_S);
+        if (show(w) == kAXErrorCannotComplete && hung)
+            for (int j = i + 1; j < nwins; j++)
+                if (wins[j].pid == w->pid) hung[j] = true;
+    }
+    free(hung);
 }

@@ -38,7 +38,7 @@ The bare binary's menu has only Quit. The app's menu has:
 - **Open Config File**: creates `~/.config/just-desktops/config` from a commented template if it is missing, then opens it. Keys, modifier, pins and `no_preview` are edited there.
 - **About just-desktops** (opens the project page) and **Quit just-desktops**.
 
-Choosing a setting rewrites only that key in the config file (the line is replaced or appended; other lines and comments stay; a symlinked config stays a symlink), then restarts the app. The restart puts parked windows back on the screen, then starts a new process, so every window ends up on the current desktop, the same as after quitting and launching. Choosing Square asks for Screen Recording after the restart if it is not granted.
+Choosing a setting rewrites only that key in the config file (the line is replaced or appended; other lines and comments stay; a symlinked config stays a symlink), then restarts the app. The restart puts parked windows back on the screen and saves which desktop each belongs to, then starts a new process that puts them back on those desktops. Quitting and launching again within a minute does the same. Choosing Square asks for Screen Recording after the restart if it is not granted.
 
 ## The `+k` slot
 
