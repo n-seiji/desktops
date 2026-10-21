@@ -41,15 +41,41 @@ int main(void) {
         {"focus moved on", false, false, false, false, FOLLOW_DROP},
         {"focus moved on, window left", false, false, false, true, FOLLOW_DROP},
         {"window is now here", true, true, false, false, FOLLOW_DROP},
-        {"settling started meanwhile", true, false, true, false, FOLLOW_DROP},
-        {"settling started meanwhile, window left", true, false, true, true, FOLLOW_DROP},
+        {"settling started meanwhile", true, false, true, false, FOLLOW_WAIT},
+        {"settling started meanwhile, window left", true, false, true, true, FOLLOW_WAIT},
+        {"settling started, focus moved on", false, false, true, false, FOLLOW_DROP},
+        {"settling started, window is now here", true, true, true, false, FOLLOW_DROP},
         {"window here was minimized, closed or quit", true, false, false, true, FOLLOW_LEFT},
     };
-    static const char *const an[] = {"drop", "left", "switch"};
+    static const char *const an[] = {"drop", "wait", "left", "switch"};
     for (unsigned i = 0; i < sizeof c / sizeof c[0]; i++) {
         follow_act_t got = follow_check(c[i].still_focused, c[i].now_here, c[i].settling, c[i].cur_left);
         if (got == c[i].want) continue;
         printf("FAIL check: %s = %s; want %s\n", c[i].what, an[got], an[c[i].want]);
+        failed++;
+    }
+    static const struct {
+        const char *what;
+        bool tracked_here, known_minimized, alive;
+        ax_read_t read;
+        bool ax_minimized, want;
+    } l[] = {
+        {"window is fine", true, false, true, READ_OK, false, false},
+        {"minimize in flight", true, false, true, READ_OK, true, true},
+        {"close in flight", true, false, true, READ_INVALID, false, true},
+        {"quit in flight", true, false, false, READ_OK, false, true},
+        {"app busy or quitting", true, false, true, READ_BUSY, false, true},
+        {"other read error", true, false, true, READ_OTHER, false, false},
+        {"already minimized", true, true, true, READ_OK, true, false},
+        {"already minimized, app quit since", true, true, false, READ_OK, true, false},
+        {"already removed", false, false, false, READ_OTHER, false, false},
+        {"moved to another desktop", false, false, true, READ_OK, true, false},
+        {"never had a window here", false, false, true, READ_OTHER, false, false},
+    };
+    for (unsigned i = 0; i < sizeof l / sizeof l[0]; i++) {
+        bool got = cur_left(l[i].tracked_here, l[i].known_minimized, l[i].alive, l[i].read, l[i].ax_minimized);
+        if (got == l[i].want) continue;
+        printf("FAIL cur_left: %s = %d; want %d\n", l[i].what, got, l[i].want);
         failed++;
     }
     if (!failed) printf("ok\n");

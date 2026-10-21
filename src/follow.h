@@ -14,6 +14,7 @@ focus_act_t focus_act(bool parked, bool settling, bool recheck, bool is_stale, b
 
 typedef enum {
     FOLLOW_DROP,   // the call is over or handled elsewhere: do nothing
+    FOLLOW_WAIT,   // a quiet period started meanwhile: the focus is dealt with when it ends
     FOLLOW_LEFT,   // macOS focused the parked window because the user's window here closed, minimized or quit
     FOLLOW_SWITCH, // the call stands: switch to the window's desktop
 } follow_act_t;
@@ -23,3 +24,17 @@ typedef enum {
 // still_focused: the window is still the focused one. now_here: it is on this desktop now.
 // settling: a quiet period is active. cur_left: the window last used on this desktop is minimized, closed or its app quit.
 follow_act_t follow_check(bool still_focused, bool now_here, bool settling, bool cur_left);
+
+typedef enum {
+    READ_OK,      // the window answered
+    READ_INVALID, // its element is invalid: it was closed
+    READ_BUSY,    // its app did not answer in time: busy, hung or quitting
+    READ_OTHER,   // any other error
+} ax_read_t;
+
+// Whether the window last used on this desktop was just minimized, closed or its app quit, before its
+// notice arrived. Once the notice has been handled it is no longer in flight: a minimized window still tracked,
+// or one already removed, left long ago.
+// tracked_here: the window is still tracked and on this desktop. known_minimized: its minimized flag is set.
+// alive: its app is running. read, ax_minimized: the outcome of reading AXMinimized from it.
+bool cur_left(bool tracked_here, bool known_minimized, bool alive, ax_read_t read, bool ax_minimized);
