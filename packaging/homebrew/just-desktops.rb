@@ -1,8 +1,8 @@
 # Template for n-seiji/homebrew-tap (Casks/just-desktops.rb).
 # scripts/bump-cask.sh rewrites version and sha256 from a release.
 cask "just-desktops" do
-  version "0.1.0"
-  sha256 "0c52d3e9cfaff50e61501907a8746956a926be55700cf19f85891a8190bb2a2b"
+  version "0.1.1"
+  sha256 "a0818cc105ddb3e3b562436bb3c6653163c4662f3dddb4236f73febbc9c760dc"
 
   url "https://github.com/n-seiji/just-desktops/releases/download/v#{version}/just-desktops-#{version}.app.zip"
   name "just-desktops"
