@@ -20,10 +20,13 @@ typedef struct {
     AXObserverRef obs;
     int assign;
     bool nopreview;
+    bool transient; // hidden (Cmd-H) when the desktop changes
 } app_t;
 
 extern win_t *wins; // in tracking order: cycling relies on it
 extern int nwins;
+extern app_t *apps;
+extern int napps;
 extern int cur_ws;  // the current desktop
 
 #define WS_EVERY 0 // win_t.ws of a window on every desktop (assign CONFIG_EVERY)

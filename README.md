@@ -135,7 +135,7 @@ File: `~/.config/just-desktops/config`. See [config.example](config.example).
 | `keys` | up to 10 digits or letters | `1 2 3 q w e` | The n-th key is Desktop n |
 | `modifier` | `opt`, `cmd`, `ctrl` | `opt` | Base modifier of every hotkey. See [modifier](docs/workspaces.md#modifier) |
 | `no_preview` | bundle ids | — | Apps the square switcher never screenshots. Repeatable |
-| `<bundle id>` | `<n>`, `none` | — | Pin an app to Desktop n. `none` keeps the app on every desktop |
+| `<bundle id>` | `<n>`, `none`, `transient` | — | Pin an app to Desktop n. `none` keeps the app on every desktop. `transient` does too, and hides the app when you switch desktops |
 
 ```
 switcher = square

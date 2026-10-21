@@ -37,3 +37,7 @@ com.tinyspeck.slackmacgap = 3
 # For apps you call up with a shortcut, such as a quick terminal or a password manager.
 # For a password manager, also add it to no_preview so the square switcher never screenshots it.
 # com.mitchellh.ghostty = none
+
+# Like none, and the app is hidden (Cmd-H) when you switch desktops, so it is not left over the next desktop.
+# Call it up again with its own shortcut, the Dock or Cmd-Tab. It shows in place, without switching desktops.
+# <bundle id> = transient

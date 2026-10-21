@@ -75,3 +75,19 @@ bool apps_alive(pid_t pid) {
         return app && !app.isTerminated;
     }
 }
+
+bool apps_hide(pid_t pid) {
+    @autoreleasepool {
+        NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
+        if (!app || app.isTerminated || app.isHidden) return false;
+        // -hide can answer NO for the active app and still hide it.
+        [app hide];
+        return true;
+    }
+}
+
+bool apps_hidden(pid_t pid) {
+    @autoreleasepool {
+        return [NSRunningApplication runningApplicationWithProcessIdentifier:pid].isHidden;
+    }
+}

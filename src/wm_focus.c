@@ -164,6 +164,12 @@ static void log_focus(const win_t *w, const char *reason, int to) {
 
 void wm_set_trigger(const char *what) { trigger = what; }
 
+static void log_hide(pid_t pid) {
+    char app[128];
+    app_name(pid, app, sizeof app);
+    os_log(ws_log(), "app=%{public}s reason=hide trigger=%{public}s cur=%d", app, trigger, cur_ws);
+}
+
 // ---- ui ----
 
 // w is the focused window, looked up once by the caller: each lookup is a round trip to the app.
@@ -328,6 +334,17 @@ static void refresh_menubar_later(void) {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (FRESH_S + 0.05) * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ wm_refresh_menubar(wm_focused()); });
 }
 
+// Transient apps leave with the desktop, except one with no window tracked. Called inside wm_switch, so the
+// focus macOS moves to after a hide falls in the quiet period.
+static void hide_transient(void) {
+    for (int i = 0; i < napps; i++) {
+        if (!apps[i].transient) continue;
+        bool tracked = false;
+        for (int j = 0; j < nwins && !tracked; j++) tracked = wins[j].pid == apps[i].pid;
+        if (tracked && apps_hide(apps[i].pid)) log_hide(apps[i].pid);
+    }
+}
+
 void wm_switch(int ws) {
     if (ws < 1 || ws > config_workspaces() || ws == cur_ws) return;
     trigger = "hotkey";
@@ -344,6 +361,7 @@ void wm_switch(int ws) {
         if (wins[i].ws == old) wm_hide(&wins[i]);
 
     win_t *t = focus_in_current();
+    hide_transient();
     wm_settle();
     double now = settle_start;
     wm_mark_fresh(t ? t->wid : 0, now);
@@ -396,7 +414,10 @@ void wm_history_release(uint32_t wid) {
 
 static bool usable(uint32_t wid) {
     win_t *w = wm_find_win(wid);
-    return w && !w->minimized && (w->ws == WS_EVERY || (w->ws >= 1 && w->ws <= config_workspaces()));
+    if (!w || w->minimized) return false;
+    app_t *a = wm_find_app(w->pid);
+    if (a && a->transient && apps_hidden(a->pid)) return false;
+    return w->ws == WS_EVERY || (w->ws >= 1 && w->ws <= config_workspaces());
 }
 
 static unsigned history_gen;

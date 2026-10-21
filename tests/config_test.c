@@ -64,6 +64,13 @@ static void check_pin(const char *id, int want_ws) {
     }
 }
 
+static void check_transient(const char *id, bool want) {
+    if (config_transient(id) != want) {
+        printf("FAIL config_transient(\"%s\") = %d; want %d\n", id, !want, want);
+        failed++;
+    }
+}
+
 static void check_no_preview(const char *id, bool want) {
     if (config_no_preview(id) != want) {
         printf("FAIL config_no_preview(\"%s\") = %d; want %d\n", id, !want, want);
@@ -103,6 +110,9 @@ int main(void) {
     fputs("com.example.tight=none\ncom.example.note = none # quick\ncom.example.glued = none#quick\n", f);
     fputs("com.example.pinfirst = 2\ncom.example.pinfirst = none\n", f);
     fputs("com.example.nonefirst = none\ncom.example.nonefirst = 2\n", f);
+    fputs("com.example.tr = transient\ncom.example.trcaps = TRANSIENT\ncom.example.trnote = transient # c\ncom.example.trglued=transient#c\n", f);
+    fputs("com.example.trbogus = transientx\ncom.example.trfirst = transient\ncom.example.trfirst = 2\ncom.example.pintr = 2\ncom.example.pintr = transient\n", f);
+    fputs("com.example.trnone = transient\ncom.example.trnone = none\ncom.example.nonetr = none\ncom.example.nonetr = transient\n", f);
     fputs("com.example.neg = -1\ncom.example.prefix = none2\n", f);
     fclose(f);
     setenv("HOME", dir, 1);
@@ -144,6 +154,25 @@ int main(void) {
     check_pin("com.example.neg", 0);
     check_pin("com.example.prefix", 0);
     check_pin("com.example.unknown", 0);
+    check_pin("com.example.tr", CONFIG_EVERY);
+    check_pin("com.example.trcaps", CONFIG_EVERY);
+    check_pin("com.example.trnote", CONFIG_EVERY);
+    check_pin("com.example.trglued", CONFIG_EVERY);
+    check_pin("com.example.trbogus", 0);
+    check_pin("com.example.trfirst", CONFIG_EVERY);
+    check_pin("com.example.pintr", 2);
+    check_transient("com.example.tr", true);
+    check_transient("com.example.trcaps", true);
+    check_transient("com.example.trnote", true);
+    check_transient("com.example.trglued", true);
+    check_transient("com.example.trbogus", false);
+    check_transient("com.example.trfirst", true);
+    check_transient("com.example.pintr", false);
+    check_transient("com.example.trnone", true);
+    check_transient("com.example.nonetr", false);
+    check_transient("com.example.floating", false);
+    check_transient("com.example.unknown", false);
+    check_transient(NULL, false);
     check_pin(NULL, 0);
 
     check_key_char(0, '1');
