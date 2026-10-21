@@ -233,22 +233,33 @@ static void refresh_ui_for(win_t *w) {
 #define FOLLOW_DELAY_S 0.3
 static unsigned follow_gen;
 
-// The window last used on this desktop is gone: minimized, closed (its element is invalid), its app quit, or untracked.
+// The window last used on this desktop is going: its minimize, close or quit is under way but macOS has not
+// told us yet. One already handled (minimized flag set, or untracked) is not, or a stale last_focus would
+// swallow every later call. The read gets a short timeout: a quitting app may not answer, and counts as left.
+#define LEFT_AX_S 0.25
 static bool cur_window_left(void) {
     uint32_t wid = last_focus[cur_ws];
     if (!wid) return false;
     win_t *l = wm_find_win(wid);
-    if (!l) return true;
-    if (!wm_here(l)) return false;
-    if (!apps_alive(l->pid)) return true;
-    CFTypeRef v = NULL;
-    AXError err = AXUIElementCopyAttributeValue(l->el, kAXMinimizedAttribute, &v);
-    bool left = err == kAXErrorInvalidUIElement ||
-                (err == kAXErrorSuccess && v && CFGetTypeID(v) == CFBooleanGetTypeID() && CFBooleanGetValue(v));
-    if (v) CFRelease(v);
-    return left;
+    bool tracked_here = l && wm_here(l);
+    bool alive = tracked_here && apps_alive(l->pid);
+    ax_read_t read = READ_OTHER;
+    bool minimized = false;
+    if (alive && !l->minimized) {
+        CFTypeRef v = NULL;
+        AXUIElementSetMessagingTimeout(l->el, LEFT_AX_S);
+        AXError err = AXUIElementCopyAttributeValue(l->el, kAXMinimizedAttribute, &v);
+        AXUIElementSetMessagingTimeout(l->el, 0);
+        read = err == kAXErrorSuccess ? READ_OK : err == kAXErrorInvalidUIElement ? READ_INVALID
+             : err == kAXErrorCannotComplete ? READ_BUSY : READ_OTHER;
+        minimized = v && CFGetTypeID(v) == CFBooleanGetTypeID() && CFBooleanGetValue(v);
+        if (v) CFRelease(v);
+    }
+    return cur_left(tracked_here, tracked_here && l->minimized, alive, read, minimized);
 }
 
+// A check queued earlier is never cancelled by wm_move_focused or wm_focus_wid, which leave follow_gen alone.
+// It is safe because follow_check_now re-reads the focused window and the quiet period when it runs.
 static void follow_check_now(uint32_t wid, const char *why) {
     win_t *f = wm_focused();
     bool still = f && f->wid == wid;
@@ -259,6 +270,7 @@ static void follow_check_now(uint32_t wid, const char *why) {
         // The user left this desktop's window: not a call. Let the focus return here, or stay if it is empty.
         trigger = why;
         log_focus(f, "left", cur_ws);
+        last_focus[cur_ws] = 0;
         wm_settle();
         recheck_after_settle();
         return;
@@ -270,9 +282,13 @@ static void follow_check_now(uint32_t wid, const char *why) {
         visit(f->wid);
         wm_switch(f->ws);
         return;
-    default:
+    case FOLLOW_WAIT:
         // A close, minimize or quit noticed meanwhile started a quiet period: the focus comes back here after it.
-        if (still && !here && settling) recheck_after_settle();
+        trigger = why;
+        log_focus(f, "dropped", cur_ws);
+        recheck_after_settle();
+        return;
+    default:
         return;
     }
 }
@@ -310,6 +326,7 @@ static void on_focus(bool recheck) {
             return;
         case FOCUS_STALE:
             stale = w->wid;
+            last_focus[cur_ws] = 0; // nothing usable here: a later call must not be read as this desktop's window leaving
             return;
         case FOCUS_FOLLOW:
             follow_later(w->wid);
@@ -378,12 +395,18 @@ void wm_move_focused(int ws) {
     w->ws = ws;
     wm_log_ws(w, old, "move");
     last_focus[ws] = w->wid;
-    if (ws != cur_ws) {
-        wm_hide(w);
-        stale = w->wid;
-        focus_in_current();
-        wm_settle();
+    if (ws == cur_ws) {
+        // A parked window that kept focus, moved to the desktop shown now: bring it here.
+        follow_gen++;
+        if (w->wid == stale) stale = 0;
+        show(w);
+        wm_focus_wid(w->wid);
+        return;
     }
+    wm_hide(w);
+    stale = w->wid;
+    focus_in_current();
+    wm_settle();
     wm_refresh_ui();
 }
 
