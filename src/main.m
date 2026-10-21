@@ -206,6 +206,7 @@ int main(int argc, char **argv) {
         }
 
         wm_set_trigger("start");
+        wm_settle(); // a parked or pinned window focused at launch is not a call for its desktop
         wm_on_focus();
     }
 

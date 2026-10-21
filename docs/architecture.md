@@ -11,7 +11,7 @@ just-desktops is one process on the main run loop. It emulates desktops by movin
 | `config.c`, `config_write.c` | Read the config file once; write one key back for the app's settings menu. |
 | `apps.m` | NSWorkspace launch, quit and activate events; app names and icons. |
 | `wm.c` | The apps and windows we track, and the Accessibility notifications that update them. |
-| `wm_focus.c` | Park and unpark windows, switch desktops, move a window, pull windows macOS focuses on its own, the `ws` log. |
+| `wm_focus.c` | Park and unpark windows, switch desktops, move a window, follow a parked window that gets focus, the `ws` log. |
 | `wm_list.c` | The window lists the switchers and the menu bar draw from. |
 | `ax.c` | Typed reads of Accessibility attributes. |
 | `hotkey.c` | The keyboard event tap: desktop keys, ⌥Tab, Esc. |
@@ -47,14 +47,14 @@ Each time a window's desktop is set, `wm_log_ws` writes one `os_log` line (subsy
 log show --last 1h --predicate 'subsystem == "dev.n-seiji.just-desktops"'
 ```
 
-A line looks like `wid=412 app=Google Chrome ws=3->1 reason=pull trigger=ax-focus cur=1 settling=0 stale=0 same_app_here=0 idle_ms=820`.
+A desktop change looks like `wid=412 app=Google Chrome ws=3->1 reason=move trigger=hotkey cur=3 settling=0 stale=0 same_app_here=0 idle_ms=820`. A parked window that got focus looks like `wid=412 app=Google Chrome ws=3 reason=follow trigger=ax-focus cur=1->3 settling=0 stale=0 same_app_here=0 idle_ms=820` (`refocus` and `left` print `cur=1`: the desktop does not change).
 
-- `ws=old->new`: `-1` as the old value is a window just tracked, `0` is on every desktop.
-- `reason`: `pull` (macOS focused a parked window), `move` (the move key), `track` (a new window), `restore-file` (a new window that got its desktop from the saved file).
+- `ws=old->new`: on a desktop change. `-1` as the old value is a window just tracked, `0` is on every desktop. A `follow` or `refocus` line has a single `ws`, the window's own desktop.
+- `reason`: `follow` (a parked window was focused and still was 0.3 s later, so the desktop switched; `cur` is old->new), `refocus` (a parked window kept focus after a switch settled; a window of this desktop was focused), `left` (a parked window was focused 0.3 s ago, but the window last used on this desktop was minimized, closed or its app quit: not a call, so no switch), `move` (the move key), `track` (a new window), `restore-file` (a new window that got its desktop from the saved file).
 - `trigger`: the last thing that led to a focus check: `ax-focus`, `ax-created`, `ax-destroyed`, `activated`, `terminated`, `recheck` (the one after a desktop switch settles), `hotkey`, `menubar`, `retry` (an app that was not ready for Accessibility yet) or `start`. It is the last one seen, not proof of cause.
-- `settling` and `stale`: the quiet period after a desktop switch was running; the window is the one just parked.
+- `settling` and `stale`: a quiet period was running (after a switch, close, minimize or quit); the window is the one just parked or left alone.
 - `same_app_here`: other windows of the same app on the current desktop, not counting this one.
-- `idle_ms`: time since the last keyboard or mouse event.
+- `idle_ms`: time since the last keyboard or mouse event. A few seconds or more on a `follow` suggests macOS activated the app on its own, not you.
 
 Window tracking also logs `found parked by a previous run` when it finds a window left in the corner. A window of the current desktop is moved to the top left of the main display; a window of another desktop stays parked there. App names and reasons are logged as public; window titles are never logged.
 

@@ -7,6 +7,8 @@ void wm_add_app(pid_t pid, const char *bundle_id);
 void wm_remove_app(pid_t pid);
 void wm_on_focus(void); // the focused window or app may have changed
 void wm_set_trigger(const char *what); // what led to the next wm_on_focus, a literal; only for the log
+void wm_settle(void); // macOS is about to move focus on its own: parked windows it focuses for a while are not followed
+void wm_settle_pid(pid_t pid); // pid quit: if it had a window here, the focus macOS moves next is not followed
 void wm_switch(int ws);
 void wm_move_focused(int ws);
 int wm_current(void);
