@@ -10,7 +10,7 @@ Install it with `brew install --cask n-seiji/tap/just-desktops`, or download `ju
 
 ## The menu
 
-Click the menu bar item (right-click on the windows strip) for the menu: switcher style, focus border, menu bar style, Launch at Login, Open Config File and Quit. Choosing a setting writes that one line of the config and restarts the app. Windows parked on other desktops come back to the screen, as after any launch. Keys, modifier, pins and `no_preview` are edited in the config file.
+Click the menu bar item (right-click on the windows strip) for the menu: switcher style, focus border, menu bar style, Launch at Login, Open Config File and Quit. Choosing a setting writes that one line of the config and restarts the app. Windows parked on other desktops come back to the screen first, then return to their desktops when the app is up again. Keys, modifier, pins and `no_preview` are edited in the config file.
 
 ## Signing and permissions
 

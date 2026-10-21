@@ -17,12 +17,14 @@ static void add(NSRunningApplication *app) {
     add(n.userInfo[NSWorkspaceApplicationKey]);
 }
 - (void)terminated:(NSNotification *)n {
+    wm_set_trigger("terminated");
     NSRunningApplication *app = n.userInfo[NSWorkspaceApplicationKey];
     wm_remove_app(app.processIdentifier);
     wm_on_focus();
 }
 - (void)activated:(NSNotification *)n {
     (void)n;
+    wm_set_trigger("activated");
     wm_on_focus();
 }
 @end
@@ -63,5 +65,12 @@ CGImageRef apps_icon(pid_t pid, int px) {
 CFStringRef apps_name(pid_t pid) {
     @autoreleasepool {
         return (CFStringRef)CFBridgingRetain([NSRunningApplication runningApplicationWithProcessIdentifier:pid].localizedName);
+    }
+}
+
+bool apps_alive(pid_t pid) {
+    @autoreleasepool {
+        NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
+        return app && !app.isTerminated;
     }
 }

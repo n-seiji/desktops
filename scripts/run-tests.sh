@@ -28,3 +28,4 @@ run shown_test src/shown.c -framework ApplicationServices
 run cardmath_test src/cardmath.c -framework ApplicationServices
 run border_geom_test src/border_geom.c -framework ApplicationServices
 run glyph_test src/glyph.c
+run membership_test src/membership.c -framework ApplicationServices

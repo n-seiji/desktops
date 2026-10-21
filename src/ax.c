@@ -32,8 +32,9 @@ CFStringRef ax_title(AXUIElementRef el) {
     return NULL;
 }
 
-void ax_set_position(AXUIElementRef el, CGPoint p) {
+AXError ax_set_position(AXUIElementRef el, CGPoint p) {
     AXValueRef v = AXValueCreate(kAXValueTypeCGPoint, &p);
-    AXUIElementSetAttributeValue(el, kAXPositionAttribute, v);
+    AXError err = AXUIElementSetAttributeValue(el, kAXPositionAttribute, v);
     CFRelease(v);
+    return err;
 }

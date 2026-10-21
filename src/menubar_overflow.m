@@ -47,6 +47,7 @@ static double overflow_closed_at; // a click on the item closes the panel on mou
 - (void)choose:(int)i {
     uint32_t wid = rows[i].wid;
     menubar_overflow_close();
+    wm_set_trigger("menubar");
     wm_focus_wid(wid);
 }
 - (void)drawRect:(NSRect)dirty {

@@ -5,7 +5,7 @@ just-desktops keeps its own desktops. Windows of inactive desktops are parked in
 ## Desktops and keys
 
 - The desktop keys are set with `keys` in the config: digits and letters, at most 10. The n-th key is Desktop n. Other keys pass through untouched.
-- On exit, every parked window is moved back. After a crash, parked windows stay in the bottom-right corner until the next launch.
+- On exit, every parked window is moved back, and each window's desktop is saved for the next start: windows return to their desktops after a restart, or a quit followed by a launch within a minute. After a crash, parked windows stay in the bottom-right corner until the next launch, and they come back on the current desktop.
 - Windows are parked on the main display only.
 
 ## History
