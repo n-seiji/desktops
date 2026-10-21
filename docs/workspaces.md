@@ -61,6 +61,22 @@ com.mitchellh.ghostty = none
 - Changes apply on restart. A window of the app left in the corner after a crash is brought back at the next launch.
 - For a password manager, also add it to `no_preview`: otherwise the square switcher screenshots it like any listed window.
 
+## Apps hidden when you switch
+
+`<bundle id> = transient` is `none` plus a hide: the app is on every desktop, and when you switch desktops it is hidden (Cmd-H), so it does not stay over the next desktop.
+
+```
+com.mitchellh.ghostty = transient
+```
+
+- It differs from `none` only in the hide. The app is hidden whenever a switch happens.
+- While the app is hidden it is not in ⌥Tab or the menu bar, and ⌥[ and ⌥] skip its windows.
+- Call it up with its own shortcut, the Dock or Cmd-Tab. macOS unhides it and it shows in place: nothing is parked, and no desktop switch happens.
+- The whole app is hidden, not only a quick window, so its other windows go too.
+- Only regular apps with a tracked window are hidden. Whether an app's own shortcut shows it again after a hide depends on the app: panel-style quick windows may not come back, so try it.
+- Hides are in the os_log with `reason=hide`.
+- Changes apply on restart.
+
 ## Border
 
 The border is a thin ring floating 3pt off the focused window, brighter along the top.

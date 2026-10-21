@@ -7,8 +7,9 @@ typedef enum { MB_OFF, MB_STRIP, MB_ICON } menubar_mode_t;
 
 void config_set_app_mode(bool app); // before config_load: the app defaults to strip and never has no item
 void config_load(void);
-#define CONFIG_EVERY (-1) // config_assign for an app set to `= none`: on every desktop
-int config_assign(const char *bundle_id); // desktop an app is pinned to, CONFIG_EVERY for `= none`, 0 when not pinned
+#define CONFIG_EVERY (-1) // config_assign for an app set to `= none` or `= transient`: on every desktop
+int config_assign(const char *bundle_id); // desktop an app is pinned to, CONFIG_EVERY for `= none` and `= transient`, 0 when not pinned
+bool config_transient(const char *bundle_id); // `= transient`: like none, and the app is hidden when the desktop changes
 bool config_no_preview(const char *bundle_id); // the square switcher never screenshots this app's windows
 bool config_border(void);
 sw_style_t config_switcher_style(void); // off: ⌥Tab cycles instantly with no panel

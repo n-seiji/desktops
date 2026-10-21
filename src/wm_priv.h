@@ -20,10 +20,13 @@ typedef struct {
     AXObserverRef obs;
     int assign;
     bool nopreview;
+    bool transient; // hidden (Cmd-H) when the desktop changes
 } app_t;
 
 extern win_t *wins; // in tracking order: cycling relies on it
 extern int nwins;
+extern app_t *apps;
+extern int napps;
 extern int cur_ws;  // the current desktop
 
 #define WS_EVERY 0 // win_t.ws of a window on every desktop (assign CONFIG_EVERY)
@@ -36,7 +39,6 @@ win_t *wm_focused(void); // the window macOS reports as focused, tracked now if 
 
 // wm_focus.c: parking, focus and the border
 void wm_hide(win_t *w);
-void wm_refresh_ui(void);
 void wm_log_ws(const win_t *w, int old, const char *reason); // os_log a desktop change (old -1: first tracked)
 void wm_log_recover(const win_t *w); // os_log a window found parked by a previous run
 

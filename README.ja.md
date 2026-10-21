@@ -135,7 +135,7 @@ mise でアップグレードすると、バイナリのパスが変わります
 | `keys` | 数字か英字を 10 個まで | `1 2 3 q w e` | n 番目のキーがデスクトップ n |
 | `modifier` | `opt`、`cmd`、`ctrl` | `opt` | すべてのホットキーの基本の修飾キー。[modifier](docs/workspaces.md#modifier) を参照 |
 | `no_preview` | bundle id | — | square スイッチャーで画面を撮らないアプリ。複数行書ける |
-| `<bundle id>` | `<n>`、`none` | — | アプリをデスクトップ n に固定する。`none` はすべてのデスクトップに表示する |
+| `<bundle id>` | `<n>`、`none`、`transient` | — | アプリをデスクトップ n に固定する。`none` はすべてのデスクトップに表示する。`transient` も同じで、デスクトップを切り替えるとアプリを隠す |
 
 ```
 switcher = square

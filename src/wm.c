@@ -21,8 +21,9 @@ int nwins;
 int cur_ws = 1;
 
 static int capwins;
-static app_t *apps;
-static int napps, capapps;
+app_t *apps;
+int napps;
+static int capapps;
 static AXUIElementRef sys;
 
 // The desktops of the previous run (see membership.h), kept for windows that are tracked late.
@@ -176,7 +177,7 @@ win_t *wm_focused(void) {
 
 // ---- apps ----
 
-static void add_app(pid_t pid, int assign, bool nopreview, int attempt) {
+static void add_app(pid_t pid, int assign, bool nopreview, bool transient, int attempt) {
     if (wm_find_app(pid)) return;
     AXObserverRef obs = NULL;
     if (AXObserverCreate(pid, ax_cb, &obs) != kAXErrorSuccess) return;
@@ -191,7 +192,7 @@ static void add_app(pid_t pid, int assign, bool nopreview, int attempt) {
         // Freshly launched apps are often not ready for AX yet.
         if (err == kAXErrorCannotComplete && attempt < 20)
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 250 * NSEC_PER_MSEC), dispatch_get_main_queue(),
-                           ^{ add_app(pid, assign, nopreview, attempt + 1); });
+                           ^{ add_app(pid, assign, nopreview, transient, attempt + 1); });
         return;
     }
     AXObserverAddNotification(obs, el, kAXFocusedWindowChangedNotification, ctx);
@@ -210,7 +211,7 @@ static void add_app(pid_t pid, int assign, bool nopreview, int attempt) {
         apps = n;
         capapps = cap;
     }
-    apps[napps++] = (app_t){pid, el, obs, assign, nopreview};
+    apps[napps++] = (app_t){pid, el, obs, assign, nopreview, transient};
 
     CFArrayRef list = NULL;
     if (AXUIElementCopyAttributeValue(el, kAXWindowsAttribute, (CFTypeRef *)&list) == kAXErrorSuccess && list) {
@@ -225,7 +226,7 @@ static void add_app(pid_t pid, int assign, bool nopreview, int attempt) {
 }
 
 void wm_add_app(pid_t pid, const char *bundle_id) {
-    add_app(pid, config_assign(bundle_id), config_no_preview(bundle_id), 0);
+    add_app(pid, config_assign(bundle_id), config_no_preview(bundle_id), config_transient(bundle_id), 0);
     if (menubar_ready()) wm_refresh_menubar(wm_focused());
 }
 

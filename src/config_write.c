@@ -38,7 +38,10 @@ static const char sample[] =
     "# Keep an app on every desktop (never parked, in Option-Tab and the menu bar): <bundle id> = none\n"
     "# For apps you call up with a shortcut, such as a quick terminal or a password manager.\n"
     "# For a password manager, also add it to no_preview so the square switcher never screenshots it.\n"
-    "# com.mitchellh.ghostty = none\n";
+    "# com.mitchellh.ghostty = none\n"
+    "\n"
+    "# Like none, and the app is hidden (Cmd-H) when you switch desktops: <bundle id> = transient\n"
+    "# com.mitchellh.ghostty = transient\n";
 
 const char *config_sample(void) { return sample; }
 
