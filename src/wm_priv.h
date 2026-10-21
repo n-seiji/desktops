@@ -20,7 +20,6 @@ typedef struct {
     AXObserverRef obs;
     int assign;
     bool nopreview;
-    bool transient; // hidden (Cmd-H) when the desktop changes
 } app_t;
 
 extern win_t *wins; // in tracking order: cycling relies on it

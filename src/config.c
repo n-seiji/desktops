@@ -13,10 +13,9 @@
 //   menubar = on|icon|off (menu bar item: on/strip = windows and the desktop key, icon = app glyph only; the app treats off as icon)
 //   keys = 1 2 3 q w e    (digits and letters; the n-th key is Desktop n)
 //   no_preview = <bundle id> [<bundle id> ...]   (apps the square switcher never screenshots; repeatable)
-//   <bundle id> = <desktop number> | none | transient   (none: the app is on every desktop; its windows are never parked;
-//     transient: the same, and the app is hidden when you switch desktops)
+//   <bundle id> = <desktop number> | none   (none: the app is on every desktop, and is hidden when you switch desktops)
 
-typedef struct { char id[128]; int ws; bool transient; } assign_t;
+typedef struct { char id[128]; int ws; } assign_t;
 
 static assign_t *assigns;
 static int nassigns;
@@ -157,8 +156,7 @@ void config_load(void) {
             }
             continue;
         }
-        bool transient = is_word(v, "transient");
-        bool none = transient || is_word(v, "none");
+        bool none = is_word(v, "none");
         int ws = none ? CONFIG_EVERY : atoi(v);
         if (!none && (ws < 1 || ws > JD_MAX_WS)) continue;
         if (strlen(k) >= sizeof assigns->id) {
@@ -169,19 +167,11 @@ void config_load(void) {
         if (!n) break;
         assigns = n;
         snprintf(assigns[nassigns].id, sizeof assigns[nassigns].id, "%s", k);
-        assigns[nassigns].transient = transient;
         assigns[nassigns++].ws = ws;
     }
     free(line);
     fclose(f);
     if (app_mode && menubar == MB_OFF) menubar = MB_ICON;
-}
-
-bool config_transient(const char *bundle_id) {
-    if (!bundle_id) return false;
-    for (int i = 0; i < nassigns; i++)
-        if (!strcmp(assigns[i].id, bundle_id)) return assigns[i].transient;
-    return false;
 }
 
 int config_assign(const char *bundle_id) {

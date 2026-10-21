@@ -22,9 +22,9 @@
       <sub>⌥1、⌥2、⌥3。最大 10 個。</sub>
     </td>
     <td align="center" valign="top" width="33%">
-      <img src="assets/tile-none.svg" width="160" alt="奥のデスクトップが替わっても、1 枚のウィンドウが同じ場所に残る"><br>
-      <b>すべてのデスクトップに出す</b><br>
-      <sub>ターミナルやパスワード管理アプリなど、選んだアプリをどのデスクトップにも出します。</sub>
+      <img src="assets/tile-none.svg" width="160" alt="1 枚のウィンドウがデスクトップをまたいで付いてくる"><br>
+      <b>すべてのデスクトップに属するアプリ</b><br>
+      <sub>ターミナルやパスワード管理アプリなど、選んだアプリをすべてのデスクトップに属させ、切り替えると隠します。</sub>
     </td>
 </table>
 
@@ -135,7 +135,7 @@ mise でアップグレードすると、バイナリのパスが変わります
 | `keys` | 数字か英字を 10 個まで | `1 2 3 q w e` | n 番目のキーがデスクトップ n |
 | `modifier` | `opt`、`cmd`、`ctrl` | `opt` | すべてのホットキーの基本の修飾キー。[modifier](docs/workspaces.md#modifier) を参照 |
 | `no_preview` | bundle id | — | square スイッチャーで画面を撮らないアプリ。複数行書ける |
-| `<bundle id>` | `<n>`、`none`、`transient` | — | アプリをデスクトップ n に固定する。`none` はすべてのデスクトップに表示する。`transient` も同じで、デスクトップを切り替えるとアプリを隠す |
+| `<bundle id>` | `<n>`、`none` | — | アプリをデスクトップ n に固定する。`none` はすべてのデスクトップに属させ、デスクトップを切り替えるとアプリを隠す |
 
 ```
 switcher = square
@@ -147,7 +147,7 @@ com.apple.Safari = 1
 
 - [Switcher](docs/switcher.md): 3 つの表示、表示までの遅延、画面収録、パスワード管理アプリ。
 - [Menu bar](docs/menubar.md): アイコン、`+k` のパネル、クリック。
-- [Workspaces](docs/workspaces.md): フォーカス履歴、固定、すべてのデスクトップに表示するアプリ、ウィンドウの呼び寄せ、枠、修飾キーの衝突。
+- [Workspaces](docs/workspaces.md): フォーカス履歴、固定、すべてのデスクトップに属するアプリ、ウィンドウの呼び寄せ、枠、修飾キーの衝突。
 - [App](docs/app.md): メニューバーのアプリ、メニュー、許可。
 
 ## 設計
