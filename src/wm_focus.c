@@ -177,7 +177,7 @@ static void refresh_border(win_t *w) {
     if (!config_border()) return;
     CGPoint p;
     CGSize s;
-    if (!w || w->hidden || !wm_here(w) ||
+    if (!w || w->hidden || !wm_here(w) || apps_hidden(w->pid) ||
         w->minimized || ax_bool(w->el, CFSTR("AXFullScreen")) ||
         !ax_value(w->el, kAXPositionAttribute, kAXValueTypeCGPoint, &p) ||
         !ax_value(w->el, kAXSizeAttribute, kAXValueTypeCGSize, &s)) {

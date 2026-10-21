@@ -2,7 +2,7 @@
 #include "apps.h"
 #include "wm.h"
 
-// The only Objective-C in the project: NSWorkspace app launch / quit / activate events.
+// The only Objective-C in the project: NSWorkspace app launch / quit / activate / hide events.
 
 static void add(NSRunningApplication *app) {
     if (app.activationPolicy != NSApplicationActivationPolicyRegular) return;
@@ -28,6 +28,10 @@ static void add(NSRunningApplication *app) {
     wm_set_trigger("activated");
     wm_on_focus();
 }
+- (void)hidden:(NSNotification *)n {
+    (void)n;
+    wm_refresh_ui();
+}
 @end
 
 static JDAppObserver *observer;
@@ -38,6 +42,8 @@ void apps_init(void) {
     [nc addObserver:observer selector:@selector(launched:) name:NSWorkspaceDidLaunchApplicationNotification object:nil];
     [nc addObserver:observer selector:@selector(terminated:) name:NSWorkspaceDidTerminateApplicationNotification object:nil];
     [nc addObserver:observer selector:@selector(activated:) name:NSWorkspaceDidActivateApplicationNotification object:nil];
+    [nc addObserver:observer selector:@selector(hidden:) name:NSWorkspaceDidHideApplicationNotification object:nil];
+    [nc addObserver:observer selector:@selector(hidden:) name:NSWorkspaceDidUnhideApplicationNotification object:nil];
     for (NSRunningApplication *app in NSWorkspace.sharedWorkspace.runningApplications) add(app);
 }
 
