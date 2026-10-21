@@ -147,7 +147,7 @@ com.apple.Safari = 1
 
 - [Switcher](docs/switcher.md): the three styles, the delay, Screen Recording, password managers.
 - [Menu bar](docs/menubar.md): glyphs, the `+k` panel, clicking.
-- [Workspaces](docs/workspaces.md): focus history, pins, apps on every desktop, pulling windows, the border, modifier conflicts.
+- [Workspaces](docs/workspaces.md): focus history, pins, apps on every desktop, following windows, the border, modifier conflicts.
 - [App](docs/app.md): the menu bar app, its menu and permissions.
 
 ## Design

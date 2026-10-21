@@ -19,6 +19,7 @@ static void add(NSRunningApplication *app) {
 - (void)terminated:(NSNotification *)n {
     wm_set_trigger("terminated");
     NSRunningApplication *app = n.userInfo[NSWorkspaceApplicationKey];
+    wm_settle_pid(app.processIdentifier);
     wm_remove_app(app.processIdentifier);
     wm_on_focus();
 }

@@ -254,7 +254,11 @@ static void ax_cb(AXObserverRef obs, AXUIElementRef el, CFStringRef n, void *ctx
     } else if (CFEqual(n, kAXUIElementDestroyedNotification)) {
         wm_set_trigger("ax-destroyed");
         for (int i = 0; i < nwins; i++)
-            if (CFEqual(wins[i].el, el)) { remove_win_at(i); break; }
+            if (CFEqual(wins[i].el, el)) {
+                if (wm_here(&wins[i])) wm_settle();
+                remove_win_at(i);
+                break;
+            }
         wm_on_focus();
     } else if (CFEqual(n, kAXFocusedWindowChangedNotification) || CFEqual(n, kAXMainWindowChangedNotification)) {
         wm_set_trigger("ax-focus");
@@ -262,7 +266,11 @@ static void ax_cb(AXObserverRef obs, AXUIElementRef el, CFStringRef n, void *ctx
     } else {
         bool mini = CFEqual(n, kAXWindowMiniaturizedNotification);
         for (int i = 0; i < nwins; i++)
-            if (CFEqual(wins[i].el, el)) { wins[i].minimized = mini; break; }
+            if (CFEqual(wins[i].el, el)) {
+                wins[i].minimized = mini;
+                if (mini && wm_here(&wins[i])) wm_settle();
+                break;
+            }
         wm_refresh_ui();
     }
 }

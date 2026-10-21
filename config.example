@@ -26,8 +26,8 @@ menubar = off
 keys = 1 2 3 q w e
 
 # Pin apps to a desktop: <bundle id> = <desktop number>
-# A pin places a window on that desktop when it first appears without being focused (an existing window at launch, or one opened in the background).
-# A window that is focused when it appears, or focused later, is pulled to the current desktop.
+# A pin places a window on that desktop when it first appears (an existing window at launch, or one opened in the background); that does not switch to it.
+# A window that is focused when it appears, or focused later, switches to its desktop: opening a link in a pinned Safari takes you to its pin.
 # Find a bundle id with: osascript -e 'id of app "Safari"'
 com.apple.Safari = 1
 com.googlecode.iterm2 = 2

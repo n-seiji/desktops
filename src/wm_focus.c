@@ -4,6 +4,7 @@
 #include "ax.h"
 #include "border.h"
 #include "config.h"
+#include "follow.h"
 #include "hist.h"
 #include "menubar.h"
 #include "shown.h"
@@ -14,11 +15,13 @@
 
 // Parking, switching and focus. A window of an inactive desktop sits at the bottom-right corner of
 // the main display; a desktop switch parks one set and unparks another, and a parked window that
-// macOS focuses on its own is pulled to the current desktop.
+// gets focused (Raycast, Cmd-Tab, Dock) switches to its desktop instead of coming here, after a short
+// check that the user did not just minimize, close or quit their window here.
 
 static uint32_t last_focus[JD_MAX_WS + 1];
 static uint32_t stale; // parked window macOS still reports as focused
-static double settle_until; // until then, parked windows macOS activates on its own are not pulled
+static double settle_until; // until then, parked windows macOS activates on its own are not followed
+static double settle_start; // when the current quiet period began: extensions stop SETTLE_MAX_S after it
 static hist_t hist = {.at = -1};
 static double hold_until; // until then, only the window wm_history went to is recorded; 0 when recording
 static bool hold_switcher; // ⌥Tab is stepping through windows: they are not recorded
@@ -26,8 +29,24 @@ static const char *trigger = "start"; // what led to the current wm_on_focus, fo
 static bool shutting_down; // wm_restore_all is running: no Accessibility call may wait long
 
 // After a desktop change macOS hands activation from one parked window's app to the next,
-// about a second apart; each one extends the quiet period a user's Cmd-Tab has to wait out.
+// about a second apart; each one extends the quiet period (to SETTLE_MAX_S at most) in which a call for
+// another desktop is ignored.
 #define SETTLE_S 1.5
+#define SETTLE_MAX_S 3.0
+
+void wm_settle(void) {
+    settle_start = CFAbsoluteTimeGetCurrent();
+    settle_until = settle_start + SETTLE_S;
+}
+
+// Closing, minimizing or quitting makes macOS focus some other window: not a call for its desktop.
+void wm_settle_pid(pid_t pid) {
+    for (int i = 0; i < nwins; i++)
+        if (wins[i].pid == pid && wm_here(&wins[i])) {
+            wm_settle();
+            return;
+        }
+}
 
 // ---- hide / show / focus ----
 
@@ -72,15 +91,16 @@ static void focus(win_t *w) {
     AXUIElementPerformAction(w->el, kAXRaiseAction);
 }
 
+// A window that can be given focus: a minimized one cannot.
 static win_t *first_in(int ws) {
     for (int i = 0; i < nwins; i++)
-        if (wins[i].ws == ws) return &wins[i];
+        if (wins[i].ws == ws && !wins[i].minimized) return &wins[i];
     return NULL;
 }
 
 static win_t *focus_in_current(void) {
     win_t *t = wm_find_win(last_focus[cur_ws]);
-    if (!t || t->ws != cur_ws) t = first_in(cur_ws);
+    if (!t || t->ws != cur_ws || t->minimized) t = first_in(cur_ws);
     if (t) focus(t);
     return t;
 }
@@ -101,14 +121,21 @@ static os_log_t ws_log(void) {
     return l;
 }
 
+// What a line says about w besides its desktop: its app, other windows of that app here, ms since input.
+static void log_context(const win_t *w, char *app, size_t cap, int *here, long long *idle) {
+    app_name(w->pid, app, cap);
+    *here = 0;
+    for (int i = 0; i < nwins; i++)
+        if (&wins[i] != w && wins[i].pid == w->pid && wm_here(&wins[i])) (*here)++;
+    double idle_s = CGEventSourceSecondsSinceLastEventType(kCGEventSourceStateCombinedSessionState, kCGAnyInputEventType);
+    *idle = (long long)((idle_s < 1e9 ? idle_s : 1e9) * 1000);
+}
+
 void wm_log_ws(const win_t *w, int old, const char *reason) {
     char app[128];
-    app_name(w->pid, app, sizeof app);
-    int here = 0;
-    for (int i = 0; i < nwins; i++)
-        if (&wins[i] != w && wins[i].pid == w->pid && wm_here(&wins[i])) here++;
-    double idle_s = CGEventSourceSecondsSinceLastEventType(kCGEventSourceStateCombinedSessionState, kCGAnyInputEventType);
-    long long idle = (long long)((idle_s < 1e9 ? idle_s : 1e9) * 1000);
+    int here;
+    long long idle;
+    log_context(w, app, sizeof app, &here, &idle);
     os_log(ws_log(), "wid=%u app=%{public}s ws=%d->%d reason=%{public}s trigger=%{public}s cur=%d settling=%d stale=%d same_app_here=%d idle_ms=%lld",
            w->wid, app, old, w->ws, reason, trigger, cur_ws, CFAbsoluteTimeGetCurrent() < settle_until, w->wid == stale, here, idle);
 }
@@ -117,6 +144,22 @@ void wm_log_recover(const win_t *w) {
     char app[128];
     app_name(w->pid, app, sizeof app);
     os_log(ws_log(), "wid=%u app=%{public}s found parked by a previous run", w->wid, app);
+}
+
+// A parked window that was focused: the desktop it belongs to is unchanged, cur goes from cur_ws to `to`
+// (a refocus stays on cur_ws and prints it once).
+static void log_focus(const win_t *w, const char *reason, int to) {
+    char app[128];
+    int here;
+    long long idle;
+    log_context(w, app, sizeof app, &here, &idle);
+    bool settling = CFAbsoluteTimeGetCurrent() < settle_until;
+    if (to == cur_ws)
+        os_log(ws_log(), "wid=%u app=%{public}s ws=%d reason=%{public}s trigger=%{public}s cur=%d settling=%d stale=%d same_app_here=%d idle_ms=%lld",
+               w->wid, app, w->ws, reason, trigger, cur_ws, settling, w->wid == stale, here, idle);
+    else
+        os_log(ws_log(), "wid=%u app=%{public}s ws=%d reason=%{public}s trigger=%{public}s cur=%d->%d settling=%d stale=%d same_app_here=%d idle_ms=%lld",
+               w->wid, app, w->ws, reason, trigger, cur_ws, to, settling, w->wid == stale, here, idle);
 }
 
 void wm_set_trigger(const char *what) { trigger = what; }
@@ -150,6 +193,7 @@ void wm_refresh_ui(void) {
 // While settling, a parked window that takes focus is left alone, so nothing would look at it again once the
 // quiet period ends. One check per quiet period is queued for then; only the newest one runs.
 static unsigned recheck_gen;
+static void on_focus(bool recheck);
 
 static void recheck_after_settle(void) {
     unsigned gen = ++recheck_gen;
@@ -157,41 +201,126 @@ static void recheck_after_settle(void) {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (wait > 0 ? wait : 0) * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         if (gen != recheck_gen) return;
         trigger = "recheck";
-        wm_on_focus();
+        on_focus(true);
     });
 }
 
-void wm_on_focus(void) {
+// The focused window is on this desktop: remember it, and put it in the history unless a ⌥[ or ⌥Tab is under way.
+static void visit(uint32_t wid) {
+    if (hold_switcher) return;
+    bool target = hist.at >= 0 && wid == hist.wid[hist.at];
+    if (target || CFAbsoluteTimeGetCurrent() >= hold_until) {
+        hold_until = 0;
+        hist_visit(&hist, wid);
+    }
+}
+
+static void refresh_ui_for(win_t *w) {
+    refresh_border(w);
+    wm_refresh_menubar(w);
+}
+
+// A call for a parked window is acted on after FOLLOW_DELAY_S, not at once. macOS focuses the app's other
+// window about 0.7 s before it reports that the focused one was minimized (closing and quitting are likely
+// the same), so at the notice the cause is not yet known. Only the newest call runs: any later focus
+// event or desktop switch cancels it.
+#define FOLLOW_DELAY_S 0.3
+static unsigned follow_gen;
+
+// The window last used on this desktop is gone: minimized, closed (its element is invalid), its app quit, or untracked.
+static bool cur_window_left(void) {
+    uint32_t wid = last_focus[cur_ws];
+    if (!wid) return false;
+    win_t *l = wm_find_win(wid);
+    if (!l) return true;
+    if (!wm_here(l)) return false;
+    if (!apps_alive(l->pid)) return true;
+    CFTypeRef v = NULL;
+    AXError err = AXUIElementCopyAttributeValue(l->el, kAXMinimizedAttribute, &v);
+    bool left = err == kAXErrorInvalidUIElement ||
+                (err == kAXErrorSuccess && v && CFGetTypeID(v) == CFBooleanGetTypeID() && CFBooleanGetValue(v));
+    if (v) CFRelease(v);
+    return left;
+}
+
+static void follow_check_now(uint32_t wid, const char *why) {
+    win_t *f = wm_focused();
+    bool still = f && f->wid == wid;
+    bool here = still && wm_here(f);
+    bool settling = CFAbsoluteTimeGetCurrent() < settle_until;
+    switch (follow_check(still, here, settling, still && !here && !settling && cur_window_left())) {
+    case FOLLOW_LEFT:
+        // The user left this desktop's window: not a call. Let the focus return here, or stay if it is empty.
+        trigger = why;
+        log_focus(f, "left", cur_ws);
+        wm_settle();
+        recheck_after_settle();
+        return;
+    case FOLLOW_SWITCH:
+        trigger = why;
+        // wm_switch can track new windows and move wins: f is not used after it.
+        last_focus[f->ws] = f->wid;
+        log_focus(f, "follow", f->ws);
+        visit(f->wid);
+        wm_switch(f->ws);
+        return;
+    default:
+        // A close, minimize or quit noticed meanwhile started a quiet period: the focus comes back here after it.
+        if (still && !here && settling) recheck_after_settle();
+        return;
+    }
+}
+
+static void follow_later(uint32_t wid) {
+    unsigned gen = ++follow_gen;
+    const char *why = trigger;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, FOLLOW_DELAY_S * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        if (gen == follow_gen) follow_check_now(wid, why);
+    });
+}
+
+static void on_focus(bool recheck) {
+    follow_gen++; // a call still waiting is stale: this event decides again
     win_t *w = wm_focused();
     if (w && !wm_here(w)) {
-        // A parked window took focus (Cmd-Tab, Dock, launch, unhide): pull it here, unless macOS is still
-        // settling after a desktop change or it is the one we just parked.
+        // A parked window took focus (Raycast, Cmd-Tab, Dock, a notification): go to its desktop (after
+        // FOLLOW_DELAY_S, see follow_later), unless macOS is still settling after a desktop change or a close,
+        // or it is the one we just parked.
         double t = CFAbsoluteTimeGetCurrent();
         bool settling = t < settle_until;
         if (settling) {
-            settle_until = t + SETTLE_S;
+            double cap = settle_start + SETTLE_MAX_S;
+            settle_until = t + SETTLE_S < cap ? t + SETTLE_S : cap;
             recheck_after_settle();
         }
-        if (settling || w->wid == stale) return;
-        int old = w->ws;
-        w->ws = cur_ws;
-        wm_log_ws(w, old, "pull");
-        show(w);
+        if (w->ws < 1 || w->ws > config_workspaces()) {
+            refresh_ui_for(w);
+            return;
+        }
+        switch (focus_act(true, settling, recheck, w->wid == stale, first_in(cur_ws) != NULL)) {
+        case FOCUS_REFOCUS:
+            log_focus(w, "refocus", cur_ws);
+            focus_in_current();
+            return;
+        case FOCUS_STALE:
+            stale = w->wid;
+            return;
+        case FOCUS_FOLLOW:
+            follow_later(w->wid);
+            return;
+        default:
+            return;
+        }
     }
     if (w) {
         stale = 0;
         if (w->ws != WS_EVERY) last_focus[cur_ws] = w->wid;
-        if (!hold_switcher) {
-            bool target = hist.at >= 0 && w->wid == hist.wid[hist.at];
-            if (target || CFAbsoluteTimeGetCurrent() >= hold_until) {
-                hold_until = 0;
-                hist_visit(&hist, w->wid);
-            }
-        }
+        visit(w->wid);
     }
-    refresh_border(w);
-    wm_refresh_menubar(w);
+    refresh_ui_for(w);
 }
+
+void wm_on_focus(void) { on_focus(false); }
 
 // WindowServer may not list the windows just shown or focused as on screen yet: check again once it does.
 static void refresh_menubar_later(void) {
@@ -202,6 +331,7 @@ static void refresh_menubar_later(void) {
 void wm_switch(int ws) {
     if (ws < 1 || ws > config_workspaces() || ws == cur_ws) return;
     trigger = "hotkey";
+    follow_gen++;
     win_t *f = wm_focused();
     if (f && f->ws == cur_ws) last_focus[cur_ws] = f->wid;
 
@@ -214,8 +344,8 @@ void wm_switch(int ws) {
         if (wins[i].ws == old) wm_hide(&wins[i]);
 
     win_t *t = focus_in_current();
-    double now = CFAbsoluteTimeGetCurrent();
-    settle_until = now + SETTLE_S;
+    wm_settle();
+    double now = settle_start;
     wm_mark_fresh(t ? t->wid : 0, now);
     wm_refresh_ui();
     refresh_menubar_later();
@@ -234,7 +364,7 @@ void wm_move_focused(int ws) {
         wm_hide(w);
         stale = w->wid;
         focus_in_current();
-        settle_until = CFAbsoluteTimeGetCurrent() + SETTLE_S;
+        wm_settle();
     }
     wm_refresh_ui();
 }
