@@ -49,7 +49,7 @@
 #define MAX_DOTS 12
 #define COUNTER_W 80.0
 #define COUNTER_H 20.0
-#define SQUARE_DX 120.0 // how far a square card slides before it has faded out
+#define SQUARE_DX 120.0 // how far a card slides before it has faded out
 #define SQUARE_FADE 1.6
 #define MOVE_MS 340.0
 #define POOL 2 // the selected card and the one that just left
@@ -316,7 +316,7 @@ static card_t *new_card(long v) {
 // Hands every needed position a card (reusing the ones that left) and aims every card at its slot.
 // A surviving card keeps its from; a new one starts one slot beyond its target, on the side it enters from.
 static void settle(bool animate) {
-    long need[4];
+    long need[2];
     int m = cardmath_needed(sel_v, last_dir, n, need);
     for (int i = 0; i < POOL; i++) {
         card_t *k = &cards[i];

@@ -211,7 +211,7 @@ static void open_panel(int dir) {
 }
 
 static void panel_step(int dir) {
-    if (config_switcher_style() >= SW_SQUARE) {
+    if (config_switcher_style() == SW_SQUARE) {
         card_step(dir);
         return;
     }
@@ -242,7 +242,7 @@ static void panel_step(int dir) {
 }
 
 static void panel_commit(void) {
-    if (config_switcher_style() >= SW_SQUARE) {
+    if (config_switcher_style() == SW_SQUARE) {
         card_commit();
         return;
     }
@@ -253,7 +253,7 @@ static void panel_commit(void) {
 }
 
 static void panel_cancel(void) {
-    if (config_switcher_style() >= SW_SQUARE) {
+    if (config_switcher_style() == SW_SQUARE) {
         card_cancel();
         return;
     }

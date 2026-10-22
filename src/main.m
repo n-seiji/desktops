@@ -149,7 +149,6 @@ static void acquire_lock(void) {
         fprintf(stderr, "just-desktops: already running\n");
         exit(0);
     }
-    (void)fd;
 }
 
 int main(int argc, char **argv) {
@@ -189,7 +188,7 @@ int main(int argc, char **argv) {
         }
         config_set_app_mode(jd_app_mode());
         config_load();
-        if (config_switcher_style() >= SW_SQUARE) thumb_request_access();
+        if (config_switcher_style() == SW_SQUARE) thumb_request_access();
         wm_init();
         load_membership();
         managing = true;

@@ -34,5 +34,5 @@ uint32_t sw_window(int cid, CGPoint at, CGSize sz, CGFloat radius, int blur, dou
 static inline CFStringRef sw_text(const sw_entry_t *e) {
     return e->title ? e->title : e->app;
 }
-// Frees the entries wm_windows returned.
+// Frees the entries wm_windows or wm_overflow returned.
 void sw_free_entries(sw_entry_t *ents, int n);

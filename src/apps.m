@@ -2,7 +2,8 @@
 #include "apps.h"
 #include "wm.h"
 
-// The only Objective-C in the project: NSWorkspace app launch / quit / activate / hide events.
+// NSWorkspace app launch / quit / activate / hide events, and the app queries (name, icon,
+// hide) that need AppKit.
 
 static void add(NSRunningApplication *app) {
     if (app.activationPolicy != NSApplicationActivationPolicyRegular) return;

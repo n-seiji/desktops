@@ -9,19 +9,19 @@ just-desktops is one process on the main run loop. It emulates desktops by movin
 | `main.m` | Start up, single-instance lock, signals, `jd_quit` and `jd_restart`, the way out (save desktops, restore windows). |
 | `app.m` | The `.app` bundle only: first-run Accessibility panel, login item, About, settings writes. |
 | `config.c`, `config_write.c` | Read the config file once; write one key back for the app's settings menu. |
-| `apps.m` | NSWorkspace launch, quit and activate events; app names and icons. |
+| `apps.m` | NSWorkspace launch, quit, activate and hide events; app names and icons; hiding apps. |
 | `wm.c` | The apps and windows we track, and the Accessibility notifications that update them. |
 | `wm_focus.c` | Park and unpark windows, switch desktops, move a window, follow a parked window that gets focus, the `ws` log. |
 | `wm_list.c` | The window lists the switchers and the menu bar draw from. |
 | `ax.c` | Typed reads of Accessibility attributes. |
-| `hotkey.c` | The keyboard event tap: desktop keys, ⌥Tab, Esc. |
+| `hotkey.c` | The keyboard event tap: desktop keys, ⌥[ ⌥], ⌥Tab, Esc. |
 | `switcher.c`, `switcher_card.c`, `swkit.c` | List and instant switcher, square switcher, the SkyLight drawing helpers they share. |
 | `thumb.m` | Window screenshots for the square switcher (ScreenCaptureKit). |
 | `border.c` | The focus ring: four thin SkyLight windows. |
 | `menubar.m` | The status item: strip drawing, click handling. |
 | `menubar_glyph.m`, `menubar_overflow.m`, `menubar_menu.m` | App glyph masks, the "+k" panel, the right-click menu. |
 
-Pure logic, with a unit test each in `tests/`: `select.c` (selection stepping), `keyrules.c` (modifier match, repeat throttle), `strip.c` (strip geometry and hit test), `order.c` (menu bar order and overflow split), `membership.c` (the saved desktops file: format, parse, pins), `shown.c` (visibility, grace period, parking point), `cardmath.c` (easing and card layout), `border_geom.c` (ring rects), `glyph.c` (icon to mask), `title.c` (row text).
+Pure logic, with a unit test each in `tests/`: `select.c` (selection stepping), `keyrules.c` (modifier match, repeat throttle), `strip.c` (strip geometry and hit test), `order.c` (menu bar order and overflow split), `membership.c` (the saved desktops file: format, parse, pins), `shown.c` (visibility, grace period, parking point), `follow.c` (what to do when a window gets focus), `hist.c` (focus history for ⌥[ ⌥]), `cardmath.c` (easing and card layout), `border_geom.c` (ring rects), `glyph.c` (icon to mask), `title.c` (row text).
 
 Headers: one per module, and `common.h` for the limits and `sw_entry_t` several modules share. `wm_priv.h` and `menubar_priv.h` are for the files of that module only.
 

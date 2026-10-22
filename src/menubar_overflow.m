@@ -1,6 +1,7 @@
 #import <AppKit/AppKit.h>
 #include "menubar_priv.h"
 #include "select.h"
+#include "swkit.h"
 #include "wm.h"
 
 // The "+k" panel: one row per hidden window (icon, title) under a small arrow that points at
@@ -28,12 +29,7 @@ static double overflow_closed_at; // a click on the item closes the panel on mou
     return self;
 }
 - (void)dealloc {
-    for (int i = 0; i < n; i++) {
-        if (rows[i].icon) CGImageRelease(rows[i].icon);
-        if (rows[i].app) CFRelease(rows[i].app);
-        if (rows[i].title) CFRelease(rows[i].title);
-    }
-    free(rows);
+    sw_free_entries(rows, n);
 }
 - (BOOL)isFlipped { return YES; }
 - (BOOL)acceptsFirstResponder { return YES; }
