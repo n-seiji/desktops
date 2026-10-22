@@ -122,14 +122,14 @@ static win_t *track(app_t *a, AXUIElementRef el) {
     }
     w = &wins[nwins++];
     int back = restored_ws(a->pid, wid);
-    *w = (win_t){(AXUIElementRef)CFRetain(el), a->pid, wid, memb_pick(a->assign, back, cur_ws), {0, 0}, false, 0, false,
-                 ax_bool(el, kAXMinimizedAttribute)};
+    *w = (win_t){.el = (AXUIElementRef)CFRetain(el), .pid = a->pid, .wid = wid,
+                 .ws = memb_pick(a->assign, back, cur_ws), .minimized = ax_bool(el, kAXMinimizedAttribute)};
     wm_log_ws(w, -1, a->assign == 0 && back ? "restore-file" : "track");
 
     // A window left in the corner by a previous crash: bring it back.
     CGPoint p;
-    if (ax_value(el, kAXPositionAttribute, kAXValueTypeCGPoint, &p) && shown_is_parked(p, CGDisplayBounds(CGMainDisplayID()))) {
-        CGRect b = CGDisplayBounds(CGMainDisplayID());
+    CGRect b = CGDisplayBounds(CGMainDisplayID());
+    if (ax_value(el, kAXPositionAttribute, kAXValueTypeCGPoint, &p) && shown_is_parked(p, b)) {
         CGPoint safe = CGPointMake(b.origin.x + 40, b.origin.y + 60);
         // Only a window shown here is moved out. One of another desktop stays in the corner, parked, and
         // returns to the safe point when its desktop is shown.

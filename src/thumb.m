@@ -1,8 +1,8 @@
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
 #include "thumb.h"
 
-// Window thumbnails for the card switchers. ScreenCaptureKit is linked weakly and nothing here
-// runs unless a card style is configured, so the list and off styles pay nothing for it.
+// Window thumbnails for the square switcher. ScreenCaptureKit is linked weakly and nothing here
+// runs unless the square style is configured, so the list and off styles pay nothing for it.
 // The shareable window list and the pending requests live only between thumb_begin and thumb_end.
 
 #define MAX_PX_W 1152.0 // the thumbnail box, 576x330 pt, at 2x

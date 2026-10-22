@@ -21,7 +21,7 @@ void wm_restore_all(void); // every parked window back on screen, in 2.5 s at mo
 char *wm_membership(void); // the desktops as text for the next run; malloc'd, NULL on failure
 void wm_restore_membership(const char *text); // apply that text; before apps_init
 
-// The switchable windows of this desktop for the switchers, in tracking order. *out is malloc'd and
+// The switchable windows of this desktop for the switchers, in menu bar order. *out is malloc'd and
 // each entry has +1 icon, app and title (the title is the row text); the caller releases them with
 // sw_free_entries. *sel is the window after the focused one (before it for dir < 0).
 int wm_windows(int dir, sw_entry_t **out, int *sel);

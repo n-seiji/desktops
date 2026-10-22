@@ -315,10 +315,6 @@ static void on_focus(bool recheck) {
             settle_until = t + SETTLE_S < cap ? t + SETTLE_S : cap;
             recheck_after_settle();
         }
-        if (w->ws < 1 || w->ws > config_workspaces()) {
-            refresh_ui_for(w);
-            return;
-        }
         switch (focus_act(true, settling, recheck, w->wid == stale, first_in(cur_ws) != NULL)) {
         case FOCUS_REFOCUS:
             log_focus(w, "refocus", cur_ws);
@@ -364,7 +360,6 @@ static void hide_every(void) {
 
 void wm_switch(int ws) {
     if (ws < 1 || ws > config_workspaces() || ws == cur_ws) return;
-    trigger = "hotkey";
     follow_gen++;
     win_t *f = wm_focused();
     if (f && f->ws == cur_ws) last_focus[cur_ws] = f->wid;
@@ -380,8 +375,7 @@ void wm_switch(int ws) {
     win_t *t = focus_in_current();
     hide_every();
     wm_settle();
-    double now = settle_start;
-    wm_mark_fresh(t ? t->wid : 0, now);
+    wm_mark_fresh(t ? t->wid : 0, settle_start);
     wm_refresh_ui();
     refresh_menubar_later();
 }
@@ -438,8 +432,7 @@ void wm_history_release(uint32_t wid) {
 static bool usable(uint32_t wid) {
     win_t *w = wm_find_win(wid);
     if (!w || w->minimized) return false;
-    if (w->ws == WS_EVERY && apps_hidden(w->pid)) return false;
-    return w->ws == WS_EVERY || (w->ws >= 1 && w->ws <= config_workspaces());
+    return !(w->ws == WS_EVERY && apps_hidden(w->pid));
 }
 
 static unsigned history_gen;

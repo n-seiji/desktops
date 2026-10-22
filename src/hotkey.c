@@ -77,8 +77,15 @@ static CGEventRef on_key(CGEventTapProxy proxy, CGEventType type, CGEventRef ev,
         int ws = i + 1;
         if (!repeat) {
             if (armed) cancel();
-            if (alt) dispatch_async(dispatch_get_main_queue(), ^{ wm_switch(ws); });
-            else dispatch_async(dispatch_get_main_queue(), ^{ wm_move_focused(ws); });
+            if (alt) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (ws == wm_current()) return;
+                    wm_set_trigger("hotkey");
+                    wm_switch(ws);
+                });
+            } else {
+                dispatch_async(dispatch_get_main_queue(), ^{ wm_move_focused(ws); });
+            }
         }
         return NULL;
     }

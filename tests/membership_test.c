@@ -1,6 +1,5 @@
 #include "../src/membership.h"
 #include "../src/config.h"
-#include "../src/wm_priv.h"
 #include <stdio.h>
 #include <string.h>
 

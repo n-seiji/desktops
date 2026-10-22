@@ -1,6 +1,5 @@
 #include "membership.h"
 #include "config.h"
-#include "wm_priv.h"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
