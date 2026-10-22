@@ -135,33 +135,16 @@ static CGPoint hl_origin(void) {
     return CGPointMake(origin.x + ROW_INSET, origin.y + HEADER_H + hy * ROW_H);
 }
 
-static void stop_timer(void) {
-    if (!timer) return;
-    dispatch_source_cancel(timer);
-    dispatch_release(timer);
-    timer = NULL;
-}
-
 static void close_panel(void) {
-    stop_timer();
-    if (wid) {
-        SLSOrderWindow(cid, wid, 0, 0);
-        if (ctx) CGContextRelease(ctx);
-        SLSReleaseWindow(cid, wid);
-    }
-    if (hwid) {
-        SLSOrderWindow(cid, hwid, 0, 0);
-        if (hctx) CGContextRelease(hctx);
-        SLSReleaseWindow(cid, hwid);
-    }
+    sw_timer_stop(&timer);
+    sw_close_window(cid, &wid, &ctx);
+    sw_close_window(cid, &hwid, &hctx);
     for (int i = 0; i < NFONTS; i++) {
         if (fonts[i]) CFRelease(fonts[i]);
         fonts[i] = NULL;
     }
     sw_free_entries(ents, n);
     ents = NULL;
-    ctx = hctx = NULL;
-    wid = hwid = 0;
     n = 0;
     malloc_zone_pressure_relief(NULL, 0);
 }
@@ -169,7 +152,7 @@ static void close_panel(void) {
 static void tick(void) {
     double k = (CFAbsoluteTimeGetCurrent() - t0) * 1000 / SLIDE_MS;
     pos = cardmath_slide(from_pos, sel, k);
-    if (k >= 1) stop_timer();
+    if (k >= 1) sw_timer_stop(&timer);
     CGPoint o = hl_origin();
     SLSMoveWindow(cid, hwid, &o);
 }
@@ -234,11 +217,7 @@ static void panel_step(int dir) {
         CGContextFlush(hctx);
     }
     t0 = CFAbsoluteTimeGetCurrent();
-    if (timer) return;
-    timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
-    dispatch_source_set_timer(timer, DISPATCH_TIME_NOW, NSEC_PER_SEC / 60, NSEC_PER_MSEC);
-    dispatch_source_set_event_handler(timer, ^{ tick(); });
-    dispatch_resume(timer);
+    sw_timer_start(&timer, tick);
 }
 
 static void panel_commit(void) {

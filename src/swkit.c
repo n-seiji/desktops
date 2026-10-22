@@ -130,6 +130,30 @@ static CFTypeRef rounded_region(CGSize sz, CGFloat radius) {
     return shape;
 }
 
+void sw_close_window(int cid, uint32_t *wid, CGContextRef *ctx) {
+    if (!*wid) return;
+    SLSOrderWindow(cid, *wid, 0, 0);
+    if (*ctx) CGContextRelease(*ctx);
+    SLSReleaseWindow(cid, *wid);
+    *wid = 0;
+    *ctx = NULL;
+}
+
+void sw_timer_start(dispatch_source_t *t, void (*fn)(void)) {
+    if (*t) return;
+    *t = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+    dispatch_source_set_timer(*t, DISPATCH_TIME_NOW, NSEC_PER_SEC / 60, NSEC_PER_MSEC);
+    dispatch_source_set_event_handler(*t, ^{ fn(); });
+    dispatch_resume(*t);
+}
+
+void sw_timer_stop(dispatch_source_t *t) {
+    if (!*t) return;
+    dispatch_source_cancel(*t);
+    dispatch_release(*t);
+    *t = NULL;
+}
+
 uint32_t sw_window(int cid, CGPoint at, CGSize sz, CGFloat radius, int blur, double res, CGContextRef *out) {
     CGRect r = {{0, 0}, sz};
     CFTypeRef region = NULL;

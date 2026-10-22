@@ -1,6 +1,7 @@
 #pragma once
 #include "common.h"
 #include <CoreText/CoreText.h>
+#include <dispatch/dispatch.h>
 
 // Drawing and window helpers shared by the list (switcher.c) and card (switcher_card.c) switchers.
 
@@ -29,6 +30,11 @@ void sw_edge_rrect(CGContextRef c, CGRect r, CGFloat radius, const palette_t *pa
 // A translucent, mouse-transparent window at at of size sz, drawn at res (2 is sharp on Retina, 1 costs a quarter of the memory). With radius > 0 the background
 // is blurred and the window takes the rounded shape.
 uint32_t sw_window(int cid, CGPoint at, CGSize sz, CGFloat radius, int blur, double res, CGContextRef *out);
+// Orders out and releases a window from sw_window with its context; a no-op when *wid is 0.
+void sw_close_window(int cid, uint32_t *wid, CGContextRef *ctx);
+// A 60 Hz main-queue timer calling fn; start is a no-op while *t runs, stop a no-op when it doesn't.
+void sw_timer_start(dispatch_source_t *t, void (*fn)(void));
+void sw_timer_stop(dispatch_source_t *t);
 
 // The row text of an entry: its cleaned title, or the app name when there is none.
 static inline CFStringRef sw_text(const sw_entry_t *e) {
