@@ -233,37 +233,21 @@ static void place(card_t *k, double p) {
     set_alpha(k, q.a);
 }
 
-static void stop_timer(void) {
-    if (!timer) return;
-    dispatch_source_cancel(timer);
-    dispatch_release(timer);
-    timer = NULL;
-}
-
 static void release_card(card_t *k) {
-    if (k->wid) {
-        SLSOrderWindow(cid, k->wid, 0, 0);
-        if (k->ctx) CGContextRelease(k->ctx);
-        SLSReleaseWindow(cid, k->wid);
-    }
+    sw_close_window(cid, &k->wid, &k->ctx);
     if (k->img) CGImageRelease(k->img);
     *k = (card_t){0};
 }
 
 static void close_cards(void) {
-    stop_timer();
+    sw_timer_stop(&timer);
     thumb_end();
     open_gen++;
     for (int i = 0; i < POOL; i++) release_card(&cards[i]);
     uint32_t *ws[] = {&stage, &counter, &dots};
     CGContextRef *cs[] = {&stage_ctx, &counter_ctx, &dots_ctx};
     for (int i = 0; i < 3; i++) {
-        if (!*ws[i]) continue;
-        SLSOrderWindow(cid, *ws[i], 0, 0);
-        if (*cs[i]) CGContextRelease(*cs[i]);
-        SLSReleaseWindow(cid, *ws[i]);
-        *ws[i] = 0;
-        *cs[i] = NULL;
+        sw_close_window(cid, ws[i], cs[i]);
     }
     for (int i = 0; i < NFONTS; i++) {
         if (fonts[i]) CFRelease(fonts[i]);
@@ -287,7 +271,7 @@ static void tick(void) {
         if (done) c->from = c->to;
     }
     SLSReenableUpdate(cid);
-    if (done) stop_timer();
+    if (done) sw_timer_stop(&timer);
 }
 
 static card_t *new_card(long v) {
@@ -406,11 +390,7 @@ void card_step(int dir) {
         if (cards[i].used) place(&cards[i], cards[i].from);
     SLSReenableUpdate(cid);
     t0 = CFAbsoluteTimeGetCurrent();
-    if (timer) return;
-    timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
-    dispatch_source_set_timer(timer, DISPATCH_TIME_NOW, NSEC_PER_SEC / 60, NSEC_PER_MSEC);
-    dispatch_source_set_event_handler(timer, ^{ tick(); });
-    dispatch_resume(timer);
+    sw_timer_start(&timer, tick);
 }
 
 void card_commit(void) {

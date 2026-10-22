@@ -108,6 +108,18 @@ static int switch_order(const win_t *f, pid_t *pids, uint32_t *wids, int *at) {
     return n;
 }
 
+// A row for a window: app name, cleaned title (labelled later by label_entries), icon_px icon
+// (0 for none), nopreview.
+static sw_entry_t entry(uint32_t wid, pid_t pid, int icon_px) {
+    win_t *w = wm_find_win(wid);
+    app_t *own = wm_find_app(pid);
+    CFStringRef app = apps_name(pid), raw = w ? ax_title(w->el) : NULL;
+    sw_entry_t e = {wid, pid, icon_px ? apps_icon(pid, icon_px) : NULL, app,
+                    raw ? title_clean(raw, app) : NULL, own && own->nopreview};
+    if (raw) CFRelease(raw);
+    return e;
+}
+
 // Every switchable window, in the menu bar's order (grouped by app), so Tab walks the strip left
 // to right.
 int wm_windows(int dir, sw_entry_t **out, int *sel) {
@@ -123,14 +135,7 @@ int wm_windows(int dir, sw_entry_t **out, int *sel) {
         free(wids);
         return 0;
     }
-    for (int i = 0; i < n; i++) {
-        win_t *w = wm_find_win(wids[i]);
-        CFStringRef app = apps_name(pids[i]), raw = w ? ax_title(w->el) : NULL;
-        app_t *own = wm_find_app(pids[i]);
-        list[i] = (sw_entry_t){wids[i], pids[i], apps_icon(pids[i], 56), app,
-                               raw ? title_clean(raw, app) : NULL, own && own->nopreview};
-        if (raw) CFRelease(raw);
-    }
+    for (int i = 0; i < n; i++) list[i] = entry(wids[i], pids[i], 56);
     free(pids);
     free(wids);
     label_entries(list, n);
@@ -204,12 +209,7 @@ int wm_overflow(sw_entry_t **out) {
     if (!over) return 0;
     sw_entry_t *list = calloc(n, sizeof *list);
     if (!list) return 0;
-    for (int i = 0; i < n; i++) {
-        win_t *w = wm_find_win(wids[i]);
-        CFStringRef app = apps_name(pids[i]), raw = w ? ax_title(w->el) : NULL;
-        list[i] = (sw_entry_t){wids[i], pids[i], NULL, app, raw && app ? title_clean(raw, app) : NULL, false};
-        if (raw) CFRelease(raw);
-    }
+    for (int i = 0; i < n; i++) list[i] = entry(wids[i], pids[i], 0);
     label_entries(list, n);
     for (int i = 0; i < skip; i++) {
         if (list[i].app) CFRelease(list[i].app);
