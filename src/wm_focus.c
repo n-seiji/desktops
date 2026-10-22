@@ -351,11 +351,11 @@ static void refresh_menubar_later(void) {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (FRESH_S + 0.05) * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ wm_refresh_menubar(wm_focused()); });
 }
 
-// Transient apps leave with the desktop, except one with no window tracked. Called inside wm_switch, so the
+// Apps set to `none` leave with the desktop, except one with no window tracked. Called inside wm_switch, so the
 // focus macOS moves to after a hide falls in the quiet period.
-static void hide_transient(void) {
+static void hide_every(void) {
     for (int i = 0; i < napps; i++) {
-        if (!apps[i].transient) continue;
+        if (apps[i].assign != CONFIG_EVERY) continue;
         bool tracked = false;
         for (int j = 0; j < nwins && !tracked; j++) tracked = wins[j].pid == apps[i].pid;
         if (tracked && apps_hide(apps[i].pid)) log_hide(apps[i].pid);
@@ -378,7 +378,7 @@ void wm_switch(int ws) {
         if (wins[i].ws == old) wm_hide(&wins[i]);
 
     win_t *t = focus_in_current();
-    hide_transient();
+    hide_every();
     wm_settle();
     double now = settle_start;
     wm_mark_fresh(t ? t->wid : 0, now);
@@ -438,8 +438,7 @@ void wm_history_release(uint32_t wid) {
 static bool usable(uint32_t wid) {
     win_t *w = wm_find_win(wid);
     if (!w || w->minimized) return false;
-    app_t *a = wm_find_app(w->pid);
-    if (a && a->transient && apps_hidden(a->pid)) return false;
+    if (w->ws == WS_EVERY && apps_hidden(w->pid)) return false;
     return w->ws == WS_EVERY || (w->ws >= 1 && w->ws <= config_workspaces());
 }
 

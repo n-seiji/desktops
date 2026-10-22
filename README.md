@@ -22,9 +22,9 @@ Keyboard-driven desktops for macOS, in one small background process (about 8MB).
       <sub>⌥1, ⌥2, ⌥3. Up to 10 desktops.</sub>
     </td>
     <td align="center" valign="top" width="33%">
-      <img src="assets/tile-none.svg" width="160" alt="One window stays in place while the desktop behind it changes"><br>
-      <b>Float above desktops</b><br>
-      <sub>Choose apps to keep on every desktop, such as a terminal or a password manager.</sub>
+      <img src="assets/tile-none.svg" width="160" alt="One window follows you across desktops"><br>
+      <b>Apps on every desktop</b><br>
+      <sub>Choose apps that belong to every desktop and hide when you switch, such as a terminal or a password manager.</sub>
     </td>
 </table>
 
@@ -135,7 +135,7 @@ File: `~/.config/just-desktops/config`. See [config.example](config.example).
 | `keys` | up to 10 digits or letters | `1 2 3 q w e` | The n-th key is Desktop n |
 | `modifier` | `opt`, `cmd`, `ctrl` | `opt` | Base modifier of every hotkey. See [modifier](docs/workspaces.md#modifier) |
 | `no_preview` | bundle ids | — | Apps the square switcher never screenshots. Repeatable |
-| `<bundle id>` | `<n>`, `none`, `transient` | — | Pin an app to Desktop n. `none` keeps the app on every desktop. `transient` does too, and hides the app when you switch desktops |
+| `<bundle id>` | `<n>`, `none` | — | Pin an app to Desktop n. `none` puts the app on every desktop and hides it when you switch desktops |
 
 ```
 switcher = square

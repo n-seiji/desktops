@@ -12,7 +12,7 @@ just-desktops keeps its own desktops. Windows of inactive desktops are parked in
 
 `⌥[` goes back to the window you had focused before, and `⌥]` goes forward again, like a browser. It remembers the last 10 windows, across desktops. If the window is on another desktop, that desktop is switched to first.
 
-- Closed and minimized windows are skipped and dropped from the history.
+- Closed and minimized windows are skipped and dropped from the history. Hidden windows of an app on every desktop are skipped too.
 - A window of an [app on every desktop](#apps-on-every-desktop) is focused on the current desktop, without switching.
 - Focusing a new window after going back drops the entries ahead. Closing a window makes macOS focus another one, and that one is recorded too if it is on the current desktop. A parked window it focuses is not.
 - Windows you pass through with `⌥Tab` while `switcher = off` are not recorded. Only the one you end on is.
@@ -21,7 +21,7 @@ just-desktops keeps its own desktops. Windows of inactive desktops are parked in
 
 ## Calling a window from another desktop
 
-A window stays on its desktop until you move it with `⌥⇧` and a number. Focusing a window that belongs to another desktop (Raycast, Cmd-Tab, Dock, a notification) switches to that desktop about 0.3 seconds later and leaves the window where it is. The delay lets just-desktops tell a call from macOS moving focus after you minimize, close or quit a window. Apps on every desktop are left out, since they are visible everywhere (see [Apps on every desktop](#apps-on-every-desktop)).
+A window stays on its desktop until you move it with `⌥⇧` and a number. Focusing a window that belongs to another desktop (Raycast, Cmd-Tab, Dock, a notification) switches to that desktop about 0.3 seconds later and leaves the window where it is. The delay lets just-desktops tell a call from macOS moving focus after you minimize, close or quit a window. Apps on every desktop are left out, since they belong to every desktop (see [Apps on every desktop](#apps-on-every-desktop)).
 
 - A window summoned within 1.5 seconds of a switch is ignored, up to 3 seconds if macOS keeps activating apps. This is macOS handing focus around after the switch, not you. The same quiet period follows closing, minimizing, quitting and `⌥⇧` + number. `⌥⇧` + the current desktop's number on a window that is parked but focused brings it here.
 - Closing, minimizing or quitting on a desktop never switches to another one, even if macOS focuses a window there next. After the quiet period (about 1.5 seconds, not instantly) a window of the current desktop gets focus back. A minimized window does not count: if the desktop has nothing else to focus, you stay on it.
@@ -46,36 +46,23 @@ com.googlecode.iterm2 = 2
 
 ## Apps on every desktop
 
-Set `<bundle id> = none` in the config for an app you call up with a shortcut, such as a quick terminal or a password manager.
+Set `<bundle id> = none` in the config for an app you call up with a shortcut, such as a quick terminal or a password manager. The app belongs to every desktop, and it is hidden (Cmd-H) when you switch desktops, so it does not stay over the next one.
 
 ```
 com.mitchellh.ghostty = none
 ```
 
-- The app's windows are never parked. Every window of the app is visible on every desktop.
-- They are in ⌥Tab and the menu bar on every desktop, so they use up its slots sooner and overflow into the `+k` panel earlier. They get the border.
-- Focusing them, in ⌥Tab or otherwise, neither moves them nor switches desktops.
-- ⌥⇧ + key does nothing while one of them has focus.
-- ⌥ + another desktop's key switches desktops and focuses that desktop's last window, if it has one; a quick terminal that hides on focus loss closes then. The current desktop's key does nothing.
-- The setting is per app, so all of an app's windows are affected, not only the quick one.
-- Changes apply on restart. A window of the app left in the corner after a crash is brought back at the next launch.
-- For a password manager, also add it to `no_preview`: otherwise the square switcher screenshots it like any listed window.
-
-## Apps hidden when you switch
-
-`<bundle id> = transient` is `none` plus a hide: the app is on every desktop, and when you switch desktops it is hidden (Cmd-H), so it does not stay over the next desktop.
-
-```
-com.mitchellh.ghostty = transient
-```
-
-- It differs from `none` only in the hide. The app is hidden whenever a switch happens.
-- While the app is hidden it is not in ⌥Tab or the menu bar, and ⌥[ and ⌥] skip its windows.
+- The app's windows are never parked.
+- While the app is hidden it is not in ⌥Tab or the menu bar, and ⌥[ and ⌥] skip its windows. Otherwise they are listed on every desktop and get the border.
 - Call it up with its own shortcut, the Dock or Cmd-Tab. macOS unhides it and it shows in place: nothing is parked, and no desktop switch happens.
-- The whole app is hidden, not only a quick window, so its other windows go too.
+- ⌥⇧ + key does nothing while one of them has focus.
+- ⌥ + another desktop's key switches desktops and focuses that desktop's last window, if it has one. The current desktop's key does nothing. If the desktop is empty and a `none` app was in front, macOS may focus a parked window in the corner; this is the same as on any empty desktop.
+- The setting is per app, so all of an app's windows are hidden, not only the quick one. A Finder set to `none` hides its windows at every switch; the desktop icons stay.
+- To keep an app visible across switches, do not set it to `none`.
 - Only regular apps with a tracked window are hidden. Whether an app's own shortcut shows it again after a hide depends on the app: panel-style quick windows may not come back, so try it.
 - Hides are in the os_log with `reason=hide`.
-- Changes apply on restart.
+- Changes apply on restart. A window of the app left in the corner after a crash is brought back at the next launch.
+- For a password manager, also add it to `no_preview`: otherwise the square switcher screenshots it like any listed window.
 
 ## Border
 
