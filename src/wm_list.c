@@ -140,16 +140,18 @@ int wm_windows(int dir, sw_entry_t **out, int *sel) {
 }
 
 // The same windows in the same order as wm_windows, as bare ids: no icons, names or titles.
-// *out is malloc'd; *sel as in wm_windows.
+// *out is malloc'd only when the count is > 0, else NULL; *sel as in wm_windows.
 int wm_window_ids(int dir, uint32_t **out, int *sel) {
+    *out = NULL;
     win_t *f = wm_focused();
     int cap = nwins ? nwins : 1, at = -1;
     pid_t *pids = malloc(sizeof *pids * cap);
     uint32_t *ids = malloc(sizeof *ids * cap);
     int n = pids && ids ? switch_order(f, pids, ids, &at) : -1;
     free(pids);
-    if (n < 0) {
+    if (n <= 0) {
         free(ids);
+        *sel = 0;
         return 0;
     }
     *sel = sel_start(at, dir, n);

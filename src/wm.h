@@ -25,6 +25,6 @@ void wm_restore_membership(const char *text); // apply that text; before apps_in
 // each entry has +1 icon, app and title (the title is the row text); the caller releases them with
 // sw_free_entries. *sel is the window after the focused one (before it for dir < 0).
 int wm_windows(int dir, sw_entry_t **out, int *sel);
-int wm_window_ids(int dir, uint32_t **out, int *sel); // wm_windows without icons and text; caller frees *out
+int wm_window_ids(int dir, uint32_t **out, int *sel); // wm_windows without icons and text; *out is NULL when 0, else the caller frees it
 // The windows behind the menu bar's "+k" slot, in order, as wm_windows has them.
 int wm_overflow(sw_entry_t **out);
