@@ -79,9 +79,12 @@ static CGEventRef on_key(CGEventTapProxy proxy, CGEventType type, CGEventRef ev,
             if (armed) cancel();
             if (alt) {
                 dispatch_async(dispatch_get_main_queue(), ^{
-                    if (ws == wm_current()) return;
-                    wm_set_trigger("hotkey");
-                    wm_switch(ws);
+                    if (ws == wm_current()) {
+                        wm_dismiss_every();
+                    } else {
+                        wm_set_trigger("hotkey");
+                        wm_switch(ws);
+                    }
                 });
             } else {
                 dispatch_async(dispatch_get_main_queue(), ^{ wm_move_focused(ws); });
