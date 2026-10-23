@@ -349,13 +349,19 @@ static void refresh_menubar_later(void) {
 
 // Apps set to `none` leave with the desktop, except one with no window tracked. Called inside wm_switch, so the
 // focus macOS moves to after a hide falls in the quiet period.
+// A `none` app with a tracked window. Keyed on the app, not the focused window: a panel such as a
+// quick terminal is never tracked.
+static bool every_app(pid_t pid) {
+    app_t *a = wm_find_app(pid);
+    if (!a || a->assign != CONFIG_EVERY) return false;
+    for (int j = 0; j < nwins; j++)
+        if (wins[j].pid == pid) return true;
+    return false;
+}
+
 static void hide_every(void) {
-    for (int i = 0; i < napps; i++) {
-        if (apps[i].assign != CONFIG_EVERY) continue;
-        bool tracked = false;
-        for (int j = 0; j < nwins && !tracked; j++) tracked = wins[j].pid == apps[i].pid;
-        if (tracked && apps_hide(apps[i].pid)) log_hide(apps[i].pid);
-    }
+    for (int i = 0; i < napps; i++)
+        if (every_app(apps[i].pid) && apps_hide(apps[i].pid)) log_hide(apps[i].pid);
 }
 
 void wm_switch(int ws) {
@@ -374,6 +380,18 @@ void wm_switch(int ws) {
 
     win_t *t = focus_in_current();
     hide_every();
+    wm_settle();
+    wm_mark_fresh(t ? t->wid : 0, settle_start);
+    wm_refresh_ui();
+    refresh_menubar_later();
+}
+
+void wm_dismiss_every(void) {
+    pid_t pid = apps_frontmost();
+    if (!every_app(pid)) return;
+    trigger = "hotkey";
+    win_t *t = focus_in_current();
+    if (apps_hide(pid)) log_hide(pid);
     wm_settle();
     wm_mark_fresh(t ? t->wid : 0, settle_start);
     wm_refresh_ui();

@@ -56,7 +56,7 @@ com.mitchellh.ghostty = none
 - While the app is hidden it is not in ⌥Tab or the menu bar, and ⌥[ and ⌥] skip its windows. Otherwise they are listed on every desktop and get the border.
 - Call it up with its own shortcut, the Dock or Cmd-Tab. macOS unhides it and it shows in place: nothing is parked, and no desktop switch happens.
 - ⌥⇧ + key does nothing while one of them has focus.
-- ⌥ + another desktop's key switches desktops and focuses that desktop's last window, if it has one. The current desktop's key does nothing. If the desktop is empty and a `none` app was in front, macOS may focus a parked window in the corner; this is the same as on any empty desktop.
+- ⌥ + another desktop's key switches desktops and focuses that desktop's last window, if it has one. The current desktop's key does nothing, except while a `none` app is in front: it hides that app (other `none` apps stay) and focuses the desktop's last window. If the desktop is empty, macOS picks what gets focus and may pick a parked window in the corner; this is the same as on any empty desktop, after a switch or here.
 - The setting is per app, so all of an app's windows are hidden, not only the quick one. A Finder set to `none` hides its windows at every switch; the desktop icons stay.
 - To keep an app visible across switches, do not set it to `none`.
 - Only regular apps with a tracked window are hidden. Whether an app's own shortcut shows it again after a hide depends on the app: panel-style quick windows may not come back, so try it.
